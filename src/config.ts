@@ -190,3 +190,10 @@ export function loadConfig(): NotificationSDKConfig {
     throw error;
   }
 }
+
+export function getBackendConfig(
+  config: NotificationSDKConfig,
+  backendName: string,
+): Record<string, unknown> | undefined {
+  return config.backends[backendName];
+}

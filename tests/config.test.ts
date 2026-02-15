@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { loadConfig } from "../src/config.js";
+import { loadConfig, getBackendConfig } from "../src/config.js";
 import type { NotificationSDKConfig } from "../src/config.js";
 import * as fs from "node:fs";
 
@@ -139,5 +139,29 @@ describe("loadConfig", () => {
 
     expect(() => loadConfig()).toThrow(/Invalid notification config/);
     expect(() => loadConfig()).toThrow(/edge/);
+  });
+});
+
+describe("getBackendConfig", () => {
+  it("should return the backend-specific config section when it exists", () => {
+    const config: NotificationSDKConfig = {
+      ...DEFAULT_CONFIG,
+      backends: {
+        ntfy: { topic: "my-topic", server: "https://ntfy.sh" },
+      },
+    };
+
+    const ntfyConfig = getBackendConfig(config, "ntfy");
+    expect(ntfyConfig).toEqual({ topic: "my-topic", server: "https://ntfy.sh" });
+  });
+
+  it("should return undefined when the backend key does not exist", () => {
+    const config: NotificationSDKConfig = {
+      ...DEFAULT_CONFIG,
+      backends: {},
+    };
+
+    const result = getBackendConfig(config, "nonexistent");
+    expect(result).toBeUndefined();
   });
 });
