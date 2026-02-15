@@ -30,10 +30,7 @@ export async function isChildSession(
 ): Promise<boolean> {
   try {
     const response = await client.session.get({ path: { id: sessionId } });
-    if (response.data?.parentID) {
-      return true;
-    }
-    return false;
+    return Boolean(response.data?.parentID);
   } catch {
     return false;
   }
