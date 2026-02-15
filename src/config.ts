@@ -55,29 +55,24 @@ function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
 }
 
-function includesString(
-  arr: readonly string[],
-  value: string,
-): boolean {
-  return arr.includes(value);
-}
+const NOTIFICATION_EVENT_SET: Set<string> = new Set(NOTIFICATION_EVENTS);
 
 function isNotificationEvent(key: string): key is NotificationEvent {
-  return includesString(NOTIFICATION_EVENTS, key);
+  return NOTIFICATION_EVENT_SET.has(key);
 }
 
-const VALID_SUBAGENT_MODES = ["always", "never", "separate"] as const;
-type SubagentMode = (typeof VALID_SUBAGENT_MODES)[number];
+const VALID_SUBAGENT_MODES: Set<string> = new Set(["always", "never", "separate"]);
+type SubagentMode = "always" | "never" | "separate";
 
 function isValidSubagentMode(value: string): value is SubagentMode {
-  return includesString(VALID_SUBAGENT_MODES, value);
+  return VALID_SUBAGENT_MODES.has(value);
 }
 
-const VALID_EDGES = ["leading", "trailing"] as const;
-type CooldownEdge = (typeof VALID_EDGES)[number];
+const VALID_EDGES: Set<string> = new Set(["leading", "trailing"]);
+type CooldownEdge = "leading" | "trailing";
 
 function isValidEdge(value: string): value is CooldownEdge {
-  return includesString(VALID_EDGES, value);
+  return VALID_EDGES.has(value);
 }
 
 function parseConfigFile(content: string): NotificationSDKConfig {
@@ -102,7 +97,7 @@ function parseConfigFile(content: string): NotificationSDKConfig {
   if (typeof parsed.subagentNotifications === "string") {
     if (!isValidSubagentMode(parsed.subagentNotifications)) {
       throw new Error(
-        `Invalid notification config: subagentNotifications must be one of ${VALID_SUBAGENT_MODES.join(", ")}, got "${parsed.subagentNotifications}"`,
+        `Invalid notification config: subagentNotifications must be one of ${[...VALID_SUBAGENT_MODES].join(", ")}, got "${parsed.subagentNotifications}"`,
       );
     }
     subagentNotifications = parsed.subagentNotifications;
@@ -121,7 +116,7 @@ function parseConfigFile(content: string): NotificationSDKConfig {
     if (typeof parsed.cooldown.edge === "string") {
       if (!isValidEdge(parsed.cooldown.edge)) {
         throw new Error(
-          `Invalid notification config: cooldown.edge must be one of ${VALID_EDGES.join(", ")}, got "${parsed.cooldown.edge}"`,
+          `Invalid notification config: cooldown.edge must be one of ${[...VALID_EDGES].join(", ")}, got "${parsed.cooldown.edge}"`,
         );
       }
       edge = parsed.cooldown.edge;
