@@ -1,6 +1,8 @@
 import { basename } from "node:path";
 import type { Plugin } from "@opencode-ai/plugin";
-import type { NotificationBackend } from "./types.js";
+import type { PluginInput } from "@opencode-ai/plugin";
+import type { NotificationBackend, NotificationEvent, EventMetadata } from "./types.js";
+import type { NotificationSDKConfig } from "./config.js";
 import { loadConfig } from "./config.js";
 import { classifySession } from "./session.js";
 import {
@@ -15,6 +17,38 @@ import { resolveField } from "./templates.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function resolveAndSend(
+  backend: NotificationBackend,
+  $: PluginInput["$"],
+  config: NotificationSDKConfig,
+  notificationEvent: NotificationEvent,
+  metadata: EventMetadata,
+): Promise<void> {
+  const templateVars = buildTemplateVariables(notificationEvent, metadata);
+  const templateConfig = config.templates?.[notificationEvent] ?? null;
+
+  const title = await resolveField(
+    $,
+    templateConfig?.titleCmd ?? null,
+    templateVars,
+    getDefaultTitle(notificationEvent),
+  );
+
+  const message = await resolveField(
+    $,
+    templateConfig?.messageCmd ?? null,
+    templateVars,
+    getDefaultMessage(notificationEvent),
+  );
+
+  await backend.send({
+    event: notificationEvent,
+    title,
+    message,
+    metadata,
+  });
 }
 
 export function createNotificationPlugin(
@@ -79,34 +113,9 @@ export function createNotificationPlugin(
             projectName,
           );
 
-          const templateVars = buildTemplateVariables(
-            notificationEvent,
-            metadata,
+          await resolveAndSend(
+            backend, input.$, config, notificationEvent, metadata,
           );
-
-          const templateConfig =
-            config.templates?.[notificationEvent] ?? null;
-
-          const title = await resolveField(
-            input.$,
-            templateConfig?.titleCmd ?? null,
-            templateVars,
-            getDefaultTitle(notificationEvent),
-          );
-
-          const message = await resolveField(
-            input.$,
-            templateConfig?.messageCmd ?? null,
-            templateVars,
-            getDefaultMessage(notificationEvent),
-          );
-
-          await backend.send({
-            event: notificationEvent,
-            title,
-            message,
-            metadata,
-          });
           return;
         }
 
@@ -136,34 +145,9 @@ export function createNotificationPlugin(
             metadata.isSubagent = true;
           }
 
-          const templateVars = buildTemplateVariables(
-            classifiedEvent,
-            metadata,
+          await resolveAndSend(
+            backend, input.$, config, classifiedEvent, metadata,
           );
-
-          const templateConfig =
-            config.templates?.[classifiedEvent] ?? null;
-
-          const title = await resolveField(
-            input.$,
-            templateConfig?.titleCmd ?? null,
-            templateVars,
-            getDefaultTitle(classifiedEvent),
-          );
-
-          const message = await resolveField(
-            input.$,
-            templateConfig?.messageCmd ?? null,
-            templateVars,
-            getDefaultMessage(classifiedEvent),
-          );
-
-          await backend.send({
-            event: classifiedEvent,
-            title,
-            message,
-            metadata,
-          });
         }
 
         if (event.type === "session.error") {
@@ -178,34 +162,9 @@ export function createNotificationPlugin(
             projectName,
           );
 
-          const templateVars = buildTemplateVariables(
-            notificationEvent,
-            metadata,
+          await resolveAndSend(
+            backend, input.$, config, notificationEvent, metadata,
           );
-
-          const templateConfig =
-            config.templates?.[notificationEvent] ?? null;
-
-          const title = await resolveField(
-            input.$,
-            templateConfig?.titleCmd ?? null,
-            templateVars,
-            getDefaultTitle(notificationEvent),
-          );
-
-          const message = await resolveField(
-            input.$,
-            templateConfig?.messageCmd ?? null,
-            templateVars,
-            getDefaultMessage(notificationEvent),
-          );
-
-          await backend.send({
-            event: notificationEvent,
-            title,
-            message,
-            metadata,
-          });
         }
       },
 
@@ -229,34 +188,9 @@ export function createNotificationPlugin(
           projectName,
         );
 
-        const templateVars = buildTemplateVariables(
-          notificationEvent,
-          metadata,
+        await resolveAndSend(
+          backend, input.$, config, notificationEvent, metadata,
         );
-
-        const templateConfig =
-          config.templates?.[notificationEvent] ?? null;
-
-        const title = await resolveField(
-          input.$,
-          templateConfig?.titleCmd ?? null,
-          templateVars,
-          getDefaultTitle(notificationEvent),
-        );
-
-        const message = await resolveField(
-          input.$,
-          templateConfig?.messageCmd ?? null,
-          templateVars,
-          getDefaultMessage(notificationEvent),
-        );
-
-        await backend.send({
-          event: notificationEvent,
-          title,
-          message,
-          metadata,
-        });
       },
     };
   };
