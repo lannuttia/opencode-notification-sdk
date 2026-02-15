@@ -14,6 +14,8 @@ import {
 } from "./events.js";
 import { getDefaultTitle, getDefaultMessage } from "./defaults.js";
 import { resolveField } from "./templates.js";
+import { createRateLimiter } from "./rate-limiter.js";
+import type { RateLimiter } from "./rate-limiter.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -25,7 +27,12 @@ async function resolveAndSend(
   config: NotificationSDKConfig,
   notificationEvent: NotificationEvent,
   metadata: EventMetadata,
+  rateLimiter: RateLimiter | null,
 ): Promise<void> {
+  if (rateLimiter !== null && !rateLimiter.shouldAllow(notificationEvent)) {
+    return;
+  }
+
   const templateVars = buildTemplateVariables(notificationEvent, metadata);
   const templateConfig = config.templates?.[notificationEvent] ?? null;
 
@@ -57,6 +64,9 @@ export function createNotificationPlugin(
   return async (input) => {
     const config = loadConfig();
     const projectName = basename(input.directory);
+    const rateLimiter = config.cooldown
+      ? createRateLimiter(config.cooldown)
+      : null;
 
     return {
       async event({ event }) {
@@ -114,7 +124,7 @@ export function createNotificationPlugin(
           );
 
           await resolveAndSend(
-            backend, input.$, config, notificationEvent, metadata,
+            backend, input.$, config, notificationEvent, metadata, rateLimiter,
           );
           return;
         }
@@ -146,7 +156,7 @@ export function createNotificationPlugin(
           }
 
           await resolveAndSend(
-            backend, input.$, config, classifiedEvent, metadata,
+            backend, input.$, config, classifiedEvent, metadata, rateLimiter,
           );
         }
 
@@ -163,7 +173,7 @@ export function createNotificationPlugin(
           );
 
           await resolveAndSend(
-            backend, input.$, config, notificationEvent, metadata,
+            backend, input.$, config, notificationEvent, metadata, rateLimiter,
           );
         }
       },
@@ -189,7 +199,7 @@ export function createNotificationPlugin(
         );
 
         await resolveAndSend(
-          backend, input.$, config, notificationEvent, metadata,
+          backend, input.$, config, notificationEvent, metadata, rateLimiter,
         );
       },
     };

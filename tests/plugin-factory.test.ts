@@ -1,4 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+} from "vitest";
 import type { NotificationContext, NotificationBackend } from "../src/types.js";
 import { createMockShell } from "./mock-shell.js";
 import * as configModule from "../src/config.js";
@@ -346,5 +353,53 @@ describe("createNotificationPlugin", () => {
     );
 
     expect(backend.send).not.toHaveBeenCalled();
+  });
+
+  describe("rate limiting", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("should suppress repeated events within cooldown period with leading edge", async () => {
+      const configWithCooldown = createDefaultConfig();
+      configWithCooldown.cooldown = { duration: "PT30S", edge: "leading" };
+      vi.mocked(configModule.loadConfig).mockReturnValue(configWithCooldown);
+
+      const { createNotificationPlugin } = await import(
+        "../src/plugin-factory.js"
+      );
+
+      const backend: NotificationBackend = {
+        send: vi.fn(),
+      };
+
+      const plugin = createNotificationPlugin(backend);
+      const input = createMockPluginInput();
+      const hooks = await plugin(input);
+
+      const sessionIdleEvent = {
+        event: {
+          type: "session.idle" as const,
+          properties: { sessionID: "sess-rl1" },
+        },
+      };
+
+      // First call should go through
+      await hooks.event!(sessionIdleEvent);
+      expect(backend.send).toHaveBeenCalledTimes(1);
+
+      // Second call within cooldown should be suppressed
+      await hooks.event!(sessionIdleEvent);
+      expect(backend.send).toHaveBeenCalledTimes(1);
+
+      // After cooldown expires, should go through again
+      vi.advanceTimersByTime(31000);
+      await hooks.event!(sessionIdleEvent);
+      expect(backend.send).toHaveBeenCalledTimes(2);
+    });
   });
 });
