@@ -49,4 +49,25 @@ describe("createRateLimiter", () => {
       expect(limiter.shouldAllow("session.complete")).toBe(false);
     });
   });
+
+  describe("with trailing edge", () => {
+    it("should deny initial calls and allow after quiet period", () => {
+      const limiter = createRateLimiter({ duration: "PT10S", edge: "trailing" });
+
+      // First call should be denied (trailing edge waits for quiet period)
+      expect(limiter.shouldAllow("session.complete")).toBe(false);
+
+      // More calls during the burst should also be denied
+      expect(limiter.shouldAllow("session.complete")).toBe(false);
+
+      // After the debounce period elapses (quiet period), the debounce callback fires
+      vi.advanceTimersByTime(10001);
+
+      // The next call after the quiet period should be allowed
+      expect(limiter.shouldAllow("session.complete")).toBe(true);
+
+      // Subsequent immediate calls should be denied again (new debounce cycle)
+      expect(limiter.shouldAllow("session.complete")).toBe(false);
+    });
+  });
 });

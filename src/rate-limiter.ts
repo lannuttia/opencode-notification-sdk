@@ -1,5 +1,5 @@
 import { parse, toSeconds } from "iso8601-duration";
-import { throttle } from "throttle-debounce";
+import { throttle, debounce } from "throttle-debounce";
 
 export function parseISO8601Duration(duration: string): number {
   const parsed = parse(duration);
@@ -41,6 +41,37 @@ function createLeadingRateLimiter(durationMs: number): RateLimiter {
   };
 }
 
+function createTrailingRateLimiter(durationMs: number): RateLimiter {
+  const pendingFire = new Map<string, boolean>();
+  const debouncedFns = new Map<string, () => void>();
+
+  function getDebouncedFn(eventType: string): () => void {
+    const existing = debouncedFns.get(eventType);
+    if (existing) {
+      return existing;
+    }
+    const fn = debounce(durationMs, () => {
+      pendingFire.set(eventType, true);
+    });
+    debouncedFns.set(eventType, fn);
+    return fn;
+  }
+
+  return {
+    shouldAllow(eventType: string): boolean {
+      if (pendingFire.get(eventType)) {
+        pendingFire.set(eventType, false);
+        const fn = getDebouncedFn(eventType);
+        fn();
+        return true;
+      }
+      const fn = getDebouncedFn(eventType);
+      fn();
+      return false;
+    },
+  };
+}
+
 export function createRateLimiter(options: RateLimiterOptions): RateLimiter {
   const durationMs = parseISO8601Duration(options.duration);
 
@@ -54,7 +85,5 @@ export function createRateLimiter(options: RateLimiterOptions): RateLimiter {
     return createLeadingRateLimiter(durationMs);
   }
 
-  return {
-    shouldAllow: () => true,
-  };
+  return createTrailingRateLimiter(durationMs);
 }
