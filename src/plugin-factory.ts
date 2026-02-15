@@ -7,6 +7,7 @@ import {
   extractSessionIdleMetadata,
   extractSessionErrorMetadata,
   extractPermissionMetadata,
+  extractQuestionMetadata,
   buildTemplateVariables,
 } from "./events.js";
 import { getDefaultTitle, getDefaultMessage } from "./defaults.js";
@@ -206,6 +207,56 @@ export function createNotificationPlugin(
             metadata,
           });
         }
+      },
+
+      async "tool.execute.before"(toolInput) {
+        if (!config.enabled) {
+          return;
+        }
+
+        if (toolInput.tool !== "question") {
+          return;
+        }
+
+        const notificationEvent = "question.asked";
+
+        if (!config.events[notificationEvent].enabled) {
+          return;
+        }
+
+        const metadata = extractQuestionMetadata(
+          { sessionID: toolInput.sessionID },
+          projectName,
+        );
+
+        const templateVars = buildTemplateVariables(
+          notificationEvent,
+          metadata,
+        );
+
+        const templateConfig =
+          config.templates?.[notificationEvent] ?? null;
+
+        const title = await resolveField(
+          input.$,
+          templateConfig?.titleCmd ?? null,
+          templateVars,
+          getDefaultTitle(notificationEvent),
+        );
+
+        const message = await resolveField(
+          input.$,
+          templateConfig?.messageCmd ?? null,
+          templateVars,
+          getDefaultMessage(notificationEvent),
+        );
+
+        await backend.send({
+          event: notificationEvent,
+          title,
+          message,
+          metadata,
+        });
       },
     };
   };

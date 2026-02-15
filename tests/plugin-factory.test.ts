@@ -294,4 +294,57 @@ describe("createNotificationPlugin", () => {
     ]);
     expect(sentContexts[0].metadata.sessionId).toBe("sess-perm-1");
   });
+
+  it("should send question.asked notification when tool.execute.before fires with question tool", async () => {
+    const { createNotificationPlugin } = await import(
+      "../src/plugin-factory.js"
+    );
+
+    const sentContexts: NotificationContext[] = [];
+    const backend: NotificationBackend = {
+      send: vi.fn(async (context: NotificationContext) => {
+        sentContexts.push(context);
+      }),
+    };
+
+    const plugin = createNotificationPlugin(backend);
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    expect(hooks["tool.execute.before"]).toBeDefined();
+
+    await hooks["tool.execute.before"]!(
+      { tool: "question", sessionID: "sess-q1", callID: "call-1" },
+      { args: {} },
+    );
+
+    expect(backend.send).toHaveBeenCalledOnce();
+    expect(sentContexts[0].event).toBe("question.asked");
+    expect(sentContexts[0].title).toBe("Question Asked");
+    expect(sentContexts[0].message).toBe(
+      "The agent has a question and is waiting for your answer.",
+    );
+    expect(sentContexts[0].metadata.sessionId).toBe("sess-q1");
+  });
+
+  it("should not send notification when tool.execute.before fires with a non-question tool", async () => {
+    const { createNotificationPlugin } = await import(
+      "../src/plugin-factory.js"
+    );
+
+    const backend: NotificationBackend = {
+      send: vi.fn(),
+    };
+
+    const plugin = createNotificationPlugin(backend);
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    await hooks["tool.execute.before"]!(
+      { tool: "read", sessionID: "sess-r1", callID: "call-2" },
+      { args: {} },
+    );
+
+    expect(backend.send).not.toHaveBeenCalled();
+  });
 });
