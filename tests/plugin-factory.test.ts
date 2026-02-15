@@ -355,6 +355,52 @@ describe("createNotificationPlugin", () => {
     expect(backend.send).not.toHaveBeenCalled();
   });
 
+  it("should use shell command template for title when configured", async () => {
+    const configWithTemplate = createDefaultConfig();
+    configWithTemplate.templates = {
+      "session.complete": {
+        titleCmd: "echo Custom {event} Title",
+        messageCmd: null,
+      },
+    };
+    vi.mocked(configModule.loadConfig).mockReturnValue(configWithTemplate);
+
+    const { createNotificationPlugin } = await import(
+      "../src/plugin-factory.js"
+    );
+
+    const sentContexts: NotificationContext[] = [];
+    const backend: NotificationBackend = {
+      send: vi.fn(async (context: NotificationContext) => {
+        sentContexts.push(context);
+      }),
+    };
+
+    const $ = createMockShell({
+      exitCode: 0,
+      stdout: "Custom session.complete Title\n",
+    });
+
+    const plugin = createNotificationPlugin(backend);
+    const input = createMockPluginInput();
+    input.$ = $;
+    const hooks = await plugin(input);
+
+    await hooks.event!({
+      event: {
+        type: "session.idle",
+        properties: { sessionID: "sess-tpl-1" },
+      },
+    });
+
+    expect(backend.send).toHaveBeenCalledOnce();
+    expect(sentContexts[0].title).toBe("Custom session.complete Title");
+    // Message should still be the default since messageCmd is null
+    expect(sentContexts[0].message).toBe(
+      "The agent has finished and is waiting for input.",
+    );
+  });
+
   describe("rate limiting", () => {
     beforeEach(() => {
       vi.useFakeTimers();
