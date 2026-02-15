@@ -30,3 +30,21 @@ export interface EventMetadata {
   permissionType?: string;
   permissionPatterns?: string[];
 }
+
+export const NOTIFICATION_CONTEXT_KEYS = [
+  "event",
+  "title",
+  "message",
+  "metadata",
+] as const;
+
+export interface NotificationContext {
+  event: NotificationEvent;
+  title: string;
+  message: string;
+  metadata: EventMetadata;
+}
+
+export interface NotificationBackend {
+  send(context: NotificationContext): Promise<void>;
+}
