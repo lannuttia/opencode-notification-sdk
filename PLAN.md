@@ -23,11 +23,11 @@
 
 ## Phase 3: Default Notification Content (`src/defaults.ts`)
 
-- [ ] Define default titles and messages for each `NotificationEvent` type
-- [ ] Export `getDefaultTitle(event: NotificationEvent): string` function
-- [ ] Export `getDefaultMessage(event: NotificationEvent): string` function
-- [ ] Write tests in `tests/defaults.test.ts`
-- [ ] Ensure tests pass and package builds cleanly
+- [x] Define default titles and messages for each `NotificationEvent` type
+- [x] Export `getDefaultTitle(event: NotificationEvent): string` function
+- [x] Export `getDefaultMessage(event: NotificationEvent): string` function
+- [x] Write tests in `tests/defaults.test.ts`
+- [x] Ensure tests pass and package builds cleanly
 
 ## Phase 4: Rate Limiter (`src/rate-limiter.ts`)
 
