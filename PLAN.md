@@ -122,7 +122,7 @@
 
 ## Phase 14: Documentation
 
-- [ ] Create `docs/creating-a-plugin.md` with:
+- [x] Create `docs/creating-a-plugin.md` with:
   - Overview of SDK architecture
   - Prerequisites
   - Implementing `NotificationBackend`
