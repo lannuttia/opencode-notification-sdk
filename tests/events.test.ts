@@ -4,6 +4,7 @@ import {
   extractSessionErrorMetadata,
   extractPermissionMetadata,
   extractQuestionMetadata,
+  buildTemplateVariables,
 } from "../src/events.js";
 
 describe("extractSessionIdleMetadata", () => {
@@ -127,5 +128,50 @@ describe("extractQuestionMetadata", () => {
     expect(metadata.error).toBeUndefined();
     expect(metadata.permissionType).toBeUndefined();
     expect(metadata.permissionPatterns).toBeUndefined();
+  });
+});
+
+describe("buildTemplateVariables", () => {
+  it("should build variables for a session.complete event", () => {
+    const vars = buildTemplateVariables("session.complete", {
+      sessionId: "sess-tv1",
+      isSubagent: false,
+      projectName: "my-project",
+      timestamp: "2026-02-14T12:00:00.000Z",
+    });
+
+    expect(vars.event).toBe("session.complete");
+    expect(vars.time).toBe("2026-02-14T12:00:00.000Z");
+    expect(vars.project).toBe("my-project");
+    expect(vars.session_id).toBe("sess-tv1");
+    expect(vars.error).toBe("");
+    expect(vars.permission_type).toBe("");
+    expect(vars.permission_patterns).toBe("");
+  });
+
+  it("should build variables for a session.error event with error metadata", () => {
+    const vars = buildTemplateVariables("session.error", {
+      sessionId: "sess-tv2",
+      isSubagent: false,
+      projectName: "my-project",
+      timestamp: "2026-02-14T12:00:00.000Z",
+      error: "something broke",
+    });
+
+    expect(vars.error).toBe("something broke");
+  });
+
+  it("should build variables for a permission.requested event with patterns", () => {
+    const vars = buildTemplateVariables("permission.requested", {
+      sessionId: "sess-tv3",
+      isSubagent: false,
+      projectName: "my-project",
+      timestamp: "2026-02-14T12:00:00.000Z",
+      permissionType: "file.write",
+      permissionPatterns: ["/tmp/*.txt", "/home/*.log"],
+    });
+
+    expect(vars.permission_type).toBe("file.write");
+    expect(vars.permission_patterns).toBe("/tmp/*.txt,/home/*.log");
   });
 });

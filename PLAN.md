@@ -74,13 +74,13 @@
 
 ## Phase 8: Event Classification (`src/events.ts`)
 
-- [ ] Implement event metadata extraction for each event type
-- [ ] Extract error message from `session.error` event properties
-- [ ] Extract permission type and patterns from `permission.asked` event properties
-- [ ] Extract session ID from event properties
-- [ ] Build template variables record per event
-- [ ] Write tests in `tests/events.test.ts`
-- [ ] Ensure tests pass and package builds cleanly
+- [x] Implement event metadata extraction for each event type
+- [x] Extract error message from `session.error` event properties
+- [x] Extract permission type and patterns from `permission.asked` event properties
+- [x] Extract session ID from event properties
+- [x] Build template variables record per event
+- [x] Write tests in `tests/events.test.ts`
+- [x] Ensure tests pass and package builds cleanly
 
 ## Phase 9: Plugin Factory (`src/plugin-factory.ts`)
 

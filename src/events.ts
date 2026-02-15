@@ -1,4 +1,4 @@
-import type { EventMetadata } from "./types.js";
+import type { EventMetadata, NotificationEvent } from "./types.js";
 
 export function extractSessionIdleMetadata(
   properties: { sessionID: string },
@@ -80,5 +80,20 @@ export function extractQuestionMetadata(
     isSubagent: false,
     projectName,
     timestamp: new Date().toISOString(),
+  };
+}
+
+export function buildTemplateVariables(
+  event: NotificationEvent,
+  metadata: EventMetadata,
+): Record<string, string> {
+  return {
+    event,
+    time: metadata.timestamp,
+    project: metadata.projectName,
+    session_id: metadata.sessionId,
+    error: metadata.error ?? "",
+    permission_type: metadata.permissionType ?? "",
+    permission_patterns: metadata.permissionPatterns?.join(",") ?? "",
   };
 }
