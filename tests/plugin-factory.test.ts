@@ -209,4 +209,43 @@ describe("createNotificationPlugin", () => {
     expect(sentContexts[0].title).toBe("Sub-agent Complete");
     expect(sentContexts[0].metadata.isSubagent).toBe(true);
   });
+
+  it("should send session.error notification with error metadata when session.error fires", async () => {
+    const { createNotificationPlugin } = await import(
+      "../src/plugin-factory.js"
+    );
+
+    const sentContexts: NotificationContext[] = [];
+    const backend: NotificationBackend = {
+      send: vi.fn(async (context: NotificationContext) => {
+        sentContexts.push(context);
+      }),
+    };
+
+    const plugin = createNotificationPlugin(backend);
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    await hooks.event!({
+      event: {
+        type: "session.error",
+        properties: {
+          sessionID: "sess-err-1",
+          error: {
+            name: "UnknownError",
+            data: { message: "something went wrong" },
+          },
+        },
+      },
+    });
+
+    expect(backend.send).toHaveBeenCalledOnce();
+    expect(sentContexts[0].event).toBe("session.error");
+    expect(sentContexts[0].title).toBe("Agent Error");
+    expect(sentContexts[0].message).toBe(
+      "An error occurred. Check the session for details.",
+    );
+    expect(sentContexts[0].metadata.error).toBe("something went wrong");
+    expect(sentContexts[0].metadata.sessionId).toBe("sess-err-1");
+  });
 });

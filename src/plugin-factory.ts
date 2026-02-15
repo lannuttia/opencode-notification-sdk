@@ -3,7 +3,11 @@ import type { Plugin } from "@opencode-ai/plugin";
 import type { NotificationBackend } from "./types.js";
 import { loadConfig } from "./config.js";
 import { classifySession } from "./session.js";
-import { extractSessionIdleMetadata, buildTemplateVariables } from "./events.js";
+import {
+  extractSessionIdleMetadata,
+  extractSessionErrorMetadata,
+  buildTemplateVariables,
+} from "./events.js";
 import { getDefaultTitle, getDefaultMessage } from "./defaults.js";
 import { resolveField } from "./templates.js";
 
@@ -70,6 +74,48 @@ export function createNotificationPlugin(
 
           await backend.send({
             event: classifiedEvent,
+            title,
+            message,
+            metadata,
+          });
+        }
+
+        if (event.type === "session.error") {
+          const notificationEvent = "session.error";
+
+          if (!config.events[notificationEvent].enabled) {
+            return;
+          }
+
+          const metadata = extractSessionErrorMetadata(
+            event.properties,
+            projectName,
+          );
+
+          const templateVars = buildTemplateVariables(
+            notificationEvent,
+            metadata,
+          );
+
+          const templateConfig =
+            config.templates?.[notificationEvent] ?? null;
+
+          const title = await resolveField(
+            input.$,
+            templateConfig?.titleCmd ?? null,
+            templateVars,
+            getDefaultTitle(notificationEvent),
+          );
+
+          const message = await resolveField(
+            input.$,
+            templateConfig?.messageCmd ?? null,
+            templateVars,
+            getDefaultMessage(notificationEvent),
+          );
+
+          await backend.send({
+            event: notificationEvent,
             title,
             message,
             metadata,
