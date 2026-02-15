@@ -54,9 +54,54 @@ function createMockShellPromise(result: MockShellResult) {
   return mockPromise;
 }
 
+function createThrowingMockShellPromise(error: Error) {
+  const rejectingPromise = Promise.reject(error);
+  // Prevent unhandled rejection warnings during test setup
+  rejectingPromise.catch(() => {});
+
+  return Object.assign(rejectingPromise, {
+    stdin: new WritableStream(),
+    cwd: function () {
+      return rejectingPromise;
+    },
+    env: function () {
+      return rejectingPromise;
+    },
+    quiet: function () {
+      return rejectingPromise;
+    },
+    lines: function () {
+      throw new Error("not implemented");
+    },
+    text: () => Promise.reject(error),
+    json: () => Promise.reject(error),
+    arrayBuffer: () => Promise.reject(error),
+    blob: () => Promise.reject(error),
+    nothrow: function () {
+      return rejectingPromise;
+    },
+    throws: function () {
+      return rejectingPromise;
+    },
+  });
+}
+
 function createMockShell(result?: MockShellResult): BunShell {
   const defaultResult: MockShellResult = { exitCode: 0, stdout: "" };
   const shellFn = vi.fn(() => createMockShellPromise(result ?? defaultResult));
+
+  return Object.assign(shellFn, {
+    braces: vi.fn(),
+    escape: vi.fn(),
+    env: vi.fn(),
+    cwd: vi.fn(),
+    nothrow: vi.fn(),
+    throws: vi.fn(),
+  });
+}
+
+function createThrowingMockShell(error: Error): BunShell {
+  const shellFn = vi.fn(() => createThrowingMockShellPromise(error));
 
   return Object.assign(shellFn, {
     braces: vi.fn(),
@@ -101,5 +146,11 @@ describe("resolveField", () => {
     const expressions = callArgs.slice(1);
     const rawExpression = expressions[0];
     expect(rawExpression).toHaveProperty("raw", "echo session.complete in my-project");
+  });
+
+  it("should return fallback when command throws an exception", async () => {
+    const $ = createThrowingMockShell(new Error("command not found"));
+    const result = await resolveField($, "nonexistent-cmd", {}, "fallback value");
+    expect(result).toBe("fallback value");
   });
 });

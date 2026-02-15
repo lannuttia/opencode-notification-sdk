@@ -20,12 +20,17 @@ export async function resolveField(
   }
 
   const command = substituteVariables(commandTemplate, variables);
-  const result = await $`${{ raw: command }}`.nothrow().quiet();
-  const output = result.text().trim();
 
-  if (result.exitCode !== 0 || output === "") {
+  try {
+    const result = await $`${{ raw: command }}`.nothrow().quiet();
+    const output = result.text().trim();
+
+    if (result.exitCode !== 0 || output === "") {
+      return fallback;
+    }
+
+    return output;
+  } catch {
     return fallback;
   }
-
-  return output;
 }
