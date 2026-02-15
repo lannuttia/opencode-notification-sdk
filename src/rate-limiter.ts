@@ -59,15 +59,13 @@ function createTrailingRateLimiter(durationMs: number): RateLimiter {
 
   return {
     shouldAllow(eventType: string): boolean {
-      if (pendingFire.get(eventType)) {
+      const fired = pendingFire.get(eventType) === true;
+      if (fired) {
         pendingFire.set(eventType, false);
-        const fn = getDebouncedFn(eventType);
-        fn();
-        return true;
       }
       const fn = getDebouncedFn(eventType);
       fn();
-      return false;
+      return fired;
     },
   };
 }
