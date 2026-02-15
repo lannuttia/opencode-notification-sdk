@@ -122,4 +122,22 @@ describe("loadConfig", () => {
       edge: "leading",
     });
   });
+
+  it("should throw when subagentNotifications has an invalid value", () => {
+    const invalidConfig = { subagentNotifications: "invalid_value" };
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(invalidConfig));
+
+    expect(() => loadConfig()).toThrow(/Invalid notification config/);
+    expect(() => loadConfig()).toThrow(/subagentNotifications/);
+  });
+
+  it("should throw when cooldown.edge has an invalid value", () => {
+    const invalidConfig = {
+      cooldown: { duration: "PT30S", edge: "middle" },
+    };
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(invalidConfig));
+
+    expect(() => loadConfig()).toThrow(/Invalid notification config/);
+    expect(() => loadConfig()).toThrow(/edge/);
+  });
 });

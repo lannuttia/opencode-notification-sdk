@@ -81,10 +81,29 @@ function parseConfigFile(content: string): NotificationSDKConfig {
   const enabled =
     typeof parsed.enabled === "boolean" ? parsed.enabled : defaults.enabled;
 
-  const subagentNotifications =
-    typeof parsed.subagentNotifications === "string"
-      ? parsed.subagentNotifications
-      : defaults.subagentNotifications;
+  const VALID_SUBAGENT_MODES = ["always", "never", "separate"] as const;
+  type SubagentMode = (typeof VALID_SUBAGENT_MODES)[number];
+
+  function isValidSubagentMode(value: string): value is SubagentMode {
+    return (VALID_SUBAGENT_MODES satisfies readonly string[]).includes(value);
+  }
+
+  let subagentNotifications: SubagentMode = defaults.subagentNotifications;
+  if (typeof parsed.subagentNotifications === "string") {
+    if (!isValidSubagentMode(parsed.subagentNotifications)) {
+      throw new Error(
+        `Invalid notification config: subagentNotifications must be one of ${VALID_SUBAGENT_MODES.join(", ")}, got "${parsed.subagentNotifications}"`,
+      );
+    }
+    subagentNotifications = parsed.subagentNotifications;
+  }
+
+  const VALID_EDGES = ["leading", "trailing"] as const;
+  type CooldownEdge = (typeof VALID_EDGES)[number];
+
+  function isValidEdge(value: string): value is CooldownEdge {
+    return (VALID_EDGES satisfies readonly string[]).includes(value);
+  }
 
   let cooldown: CooldownConfig | null = defaults.cooldown;
   if (parsed.cooldown === null) {
@@ -94,12 +113,18 @@ function parseConfigFile(content: string): NotificationSDKConfig {
       typeof parsed.cooldown.duration === "string"
         ? parsed.cooldown.duration
         : "";
-    const edge =
-      typeof parsed.cooldown.edge === "string" ? parsed.cooldown.edge : "leading";
-    cooldown = {
-      duration,
-      edge: edge === "trailing" ? "trailing" : "leading",
-    };
+
+    let edge: CooldownEdge = "leading";
+    if (typeof parsed.cooldown.edge === "string") {
+      if (!isValidEdge(parsed.cooldown.edge)) {
+        throw new Error(
+          `Invalid notification config: cooldown.edge must be one of ${VALID_EDGES.join(", ")}, got "${parsed.cooldown.edge}"`,
+        );
+      }
+      edge = parsed.cooldown.edge;
+    }
+
+    cooldown = { duration, edge };
   }
 
   const events = { ...defaults.events };
@@ -146,12 +171,7 @@ function parseConfigFile(content: string): NotificationSDKConfig {
 
   return {
     enabled,
-    subagentNotifications:
-      subagentNotifications === "always" ||
-      subagentNotifications === "never" ||
-      subagentNotifications === "separate"
-        ? subagentNotifications
-        : defaults.subagentNotifications,
+    subagentNotifications,
     cooldown,
     events,
     templates,
