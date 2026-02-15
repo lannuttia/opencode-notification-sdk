@@ -35,4 +35,20 @@ describe("isChildSession", () => {
       path: { id: "child-456" },
     });
   });
+
+  it("should return false when session has no parentID", async () => {
+    const client = createMockClient();
+    const result = await isChildSession(client, "root-session");
+    expect(result).toBe(false);
+  });
+
+  it("should return false when the API call throws an error", async () => {
+    const client = {
+      session: {
+        get: vi.fn().mockRejectedValue(new Error("Connection refused")),
+      },
+    };
+    const result = await isChildSession(client, "any-session");
+    expect(result).toBe(false);
+  });
 });
