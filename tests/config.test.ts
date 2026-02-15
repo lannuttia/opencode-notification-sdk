@@ -76,4 +76,50 @@ describe("loadConfig", () => {
 
     expect(() => loadConfig()).toThrow(/Invalid notification config/);
   });
+
+  it("should merge partial config with defaults", () => {
+    const partialConfig = { enabled: false };
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(partialConfig));
+
+    const config = loadConfig();
+    expect(config.enabled).toBe(false);
+    expect(config.subagentNotifications).toBe("separate");
+    expect(config.cooldown).toBeNull();
+    expect(config.events["session.complete"].enabled).toBe(true);
+    expect(config.events["subagent.complete"].enabled).toBe(true);
+    expect(config.events["session.error"].enabled).toBe(true);
+    expect(config.events["permission.requested"].enabled).toBe(true);
+    expect(config.events["question.asked"].enabled).toBe(true);
+    expect(config.templates).toBeNull();
+    expect(config.backends).toEqual({});
+  });
+
+  it("should merge partial events config with defaults, preserving unspecified events", () => {
+    const partialConfig = {
+      events: {
+        "session.complete": { enabled: false },
+      },
+    };
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(partialConfig));
+
+    const config = loadConfig();
+    expect(config.events["session.complete"].enabled).toBe(false);
+    expect(config.events["subagent.complete"].enabled).toBe(true);
+    expect(config.events["session.error"].enabled).toBe(true);
+    expect(config.events["permission.requested"].enabled).toBe(true);
+    expect(config.events["question.asked"].enabled).toBe(true);
+  });
+
+  it("should use default cooldown edge when only duration is specified", () => {
+    const partialConfig = {
+      cooldown: { duration: "PT30S" },
+    };
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(partialConfig));
+
+    const config = loadConfig();
+    expect(config.cooldown).toEqual({
+      duration: "PT30S",
+      edge: "leading",
+    });
+  });
 });
