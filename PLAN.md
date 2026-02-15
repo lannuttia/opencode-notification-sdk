@@ -14,12 +14,12 @@
 
 ## Phase 2: Core Types (`src/types.ts`)
 
-- [ ] Define `NotificationEvent` string literal union type (`session.complete`, `subagent.complete`, `session.error`, `permission.requested`, `question.asked`)
-- [ ] Define `EventMetadata` interface (sessionId, isSubagent, projectName, timestamp, error?, permissionType?, permissionPatterns?)
-- [ ] Define `NotificationContext` interface (event, title, message, metadata)
-- [ ] Define `NotificationBackend` interface with `send(context: NotificationContext): Promise<void>`
-- [ ] Write type conformance tests in `tests/types.test.ts`
-- [ ] Ensure tests pass and package builds cleanly
+- [x] Define `NotificationEvent` string literal union type (`session.complete`, `subagent.complete`, `session.error`, `permission.requested`, `question.asked`)
+- [x] Define `EventMetadata` interface (sessionId, isSubagent, projectName, timestamp, error?, permissionType?, permissionPatterns?)
+- [x] Define `NotificationContext` interface (event, title, message, metadata)
+- [x] Define `NotificationBackend` interface with `send(context: NotificationContext): Promise<void>`
+- [x] Write type conformance tests in `tests/types.test.ts`
+- [x] Ensure tests pass and package builds cleanly
 
 ## Phase 3: Default Notification Content (`src/defaults.ts`)
 
