@@ -1,4 +1,5 @@
 import { parse, toSeconds } from "iso8601-duration";
+import { throttle } from "throttle-debounce";
 
 export function parseISO8601Duration(duration: string): number {
   const parsed = parse(duration);
@@ -14,6 +15,32 @@ export interface RateLimiter {
   shouldAllow(eventType: string): boolean;
 }
 
+function createLeadingRateLimiter(durationMs: number): RateLimiter {
+  const throttledFns = new Map<string, () => void>();
+  let allowed = false;
+
+  function getThrottledFn(eventType: string): () => void {
+    const existing = throttledFns.get(eventType);
+    if (existing) {
+      return existing;
+    }
+    const fn = throttle(durationMs, () => {
+      allowed = true;
+    }, { noTrailing: true });
+    throttledFns.set(eventType, fn);
+    return fn;
+  }
+
+  return {
+    shouldAllow(eventType: string): boolean {
+      allowed = false;
+      const fn = getThrottledFn(eventType);
+      fn();
+      return allowed;
+    },
+  };
+}
+
 export function createRateLimiter(options: RateLimiterOptions): RateLimiter {
   const durationMs = parseISO8601Duration(options.duration);
 
@@ -21,6 +48,10 @@ export function createRateLimiter(options: RateLimiterOptions): RateLimiter {
     return {
       shouldAllow: () => true,
     };
+  }
+
+  if (options.edge === "leading") {
+    return createLeadingRateLimiter(durationMs);
   }
 
   return {
