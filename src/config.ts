@@ -59,22 +59,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function includesString(
+  arr: readonly string[],
+  value: string,
+): boolean {
+  return arr.includes(value);
+}
+
 function isNotificationEvent(key: string): key is NotificationEvent {
-  return (NOTIFICATION_EVENTS satisfies readonly string[]).includes(key);
+  return includesString(NOTIFICATION_EVENTS, key);
 }
 
 const VALID_SUBAGENT_MODES = ["always", "never", "separate"] as const;
 type SubagentMode = (typeof VALID_SUBAGENT_MODES)[number];
 
 function isValidSubagentMode(value: string): value is SubagentMode {
-  return (VALID_SUBAGENT_MODES satisfies readonly string[]).includes(value);
+  return includesString(VALID_SUBAGENT_MODES, value);
 }
 
 const VALID_EDGES = ["leading", "trailing"] as const;
 type CooldownEdge = (typeof VALID_EDGES)[number];
 
 function isValidEdge(value: string): value is CooldownEdge {
-  return (VALID_EDGES satisfies readonly string[]).includes(value);
+  return includesString(VALID_EDGES, value);
 }
 
 function parseConfigFile(content: string): NotificationSDKConfig {

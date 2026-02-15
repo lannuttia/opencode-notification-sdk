@@ -41,14 +41,14 @@
 
 ## Phase 5: Configuration (`src/config.ts`)
 
-- [ ] Define `NotificationSDKConfig` interface matching the config file schema
-- [ ] Implement `loadConfig(): NotificationSDKConfig` that reads `~/.config/opencode/notification.json`
-- [ ] Handle missing config file gracefully (return all defaults)
-- [ ] Handle malformed JSON gracefully (throw descriptive error)
-- [ ] Validate config values (subagentNotifications enum, cooldown edge enum, event types)
-- [ ] Implement `getBackendConfig<T>(config: NotificationSDKConfig, backendName: string): T | undefined`
-- [ ] Write tests in `tests/config.test.ts` (mock filesystem reads)
-- [ ] Ensure tests pass and package builds cleanly
+- [x] Define `NotificationSDKConfig` interface matching the config file schema
+- [x] Implement `loadConfig(): NotificationSDKConfig` that reads `~/.config/opencode/notification.json`
+- [x] Handle missing config file gracefully (return all defaults)
+- [x] Handle malformed JSON gracefully (throw descriptive error)
+- [x] Validate config values (subagentNotifications enum, cooldown edge enum, event types)
+- [x] Implement `getBackendConfig(config: NotificationSDKConfig, backendName: string): Record<string, unknown> | undefined` (no generic `T` parameter due to no-cast rule)
+- [x] Write tests in `tests/config.test.ts` (mock filesystem reads)
+- [x] Ensure tests pass and package builds cleanly
 
 ## Phase 6: Shell Command Templates (`src/templates.ts`)
 
