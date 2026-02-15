@@ -70,4 +70,25 @@ describe("createRateLimiter", () => {
       expect(limiter.shouldAllow("session.complete")).toBe(false);
     });
   });
+
+  describe("per-event-type independence", () => {
+    it("should track cooldowns independently for different event types", () => {
+      const limiter = createRateLimiter({ duration: "PT30S", edge: "leading" });
+
+      // First call for session.complete should be allowed
+      expect(limiter.shouldAllow("session.complete")).toBe(true);
+
+      // session.complete is now in cooldown, but session.error should be independent
+      expect(limiter.shouldAllow("session.error")).toBe(true);
+
+      // Both should now be in cooldown
+      expect(limiter.shouldAllow("session.complete")).toBe(false);
+      expect(limiter.shouldAllow("session.error")).toBe(false);
+
+      // After cooldown, both should be allowed again
+      vi.advanceTimersByTime(30001);
+      expect(limiter.shouldAllow("session.complete")).toBe(true);
+      expect(limiter.shouldAllow("session.error")).toBe(true);
+    });
+  });
 });
