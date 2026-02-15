@@ -45,3 +45,28 @@ export function extractSessionErrorMetadata(
 
   return metadata;
 }
+
+export function extractPermissionMetadata(
+  properties: {
+    sessionID: string;
+    type: string;
+    pattern?: string | string[];
+  },
+  projectName: string,
+): EventMetadata {
+  const metadata: EventMetadata = {
+    sessionId: properties.sessionID,
+    isSubagent: false,
+    projectName,
+    timestamp: new Date().toISOString(),
+    permissionType: properties.type,
+  };
+
+  if (properties.pattern !== undefined) {
+    metadata.permissionPatterns = Array.isArray(properties.pattern)
+      ? properties.pattern
+      : [properties.pattern];
+  }
+
+  return metadata;
+}

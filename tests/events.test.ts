@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   extractSessionIdleMetadata,
   extractSessionErrorMetadata,
+  extractPermissionMetadata,
 } from "../src/events.js";
 
 describe("extractSessionIdleMetadata", () => {
@@ -60,5 +61,53 @@ describe("extractSessionErrorMetadata", () => {
 
     expect(metadata.sessionId).toBe("sess-789");
     expect(metadata.error).toBeUndefined();
+  });
+});
+
+describe("extractPermissionMetadata", () => {
+  it("should extract permissionType and permissionPatterns from permission properties", () => {
+    const metadata = extractPermissionMetadata(
+      {
+        sessionID: "sess-perm-1",
+        type: "file.write",
+        pattern: ["/tmp/*.txt", "/home/*.log"],
+      },
+      "my-project",
+    );
+
+    expect(metadata.sessionId).toBe("sess-perm-1");
+    expect(metadata.projectName).toBe("my-project");
+    expect(metadata.isSubagent).toBe(false);
+    expect(metadata.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(metadata.permissionType).toBe("file.write");
+    expect(metadata.permissionPatterns).toEqual(["/tmp/*.txt", "/home/*.log"]);
+    expect(metadata.error).toBeUndefined();
+  });
+
+  it("should handle a single string pattern", () => {
+    const metadata = extractPermissionMetadata(
+      {
+        sessionID: "sess-perm-2",
+        type: "shell.execute",
+        pattern: "rm -rf /tmp/*",
+      },
+      "my-project",
+    );
+
+    expect(metadata.permissionType).toBe("shell.execute");
+    expect(metadata.permissionPatterns).toEqual(["rm -rf /tmp/*"]);
+  });
+
+  it("should handle missing pattern", () => {
+    const metadata = extractPermissionMetadata(
+      {
+        sessionID: "sess-perm-3",
+        type: "network.access",
+      },
+      "my-project",
+    );
+
+    expect(metadata.permissionType).toBe("network.access");
+    expect(metadata.permissionPatterns).toBeUndefined();
   });
 });
