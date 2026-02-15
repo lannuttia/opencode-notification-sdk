@@ -63,6 +63,20 @@ function isNotificationEvent(key: string): key is NotificationEvent {
   return (NOTIFICATION_EVENTS satisfies readonly string[]).includes(key);
 }
 
+const VALID_SUBAGENT_MODES = ["always", "never", "separate"] as const;
+type SubagentMode = (typeof VALID_SUBAGENT_MODES)[number];
+
+function isValidSubagentMode(value: string): value is SubagentMode {
+  return (VALID_SUBAGENT_MODES satisfies readonly string[]).includes(value);
+}
+
+const VALID_EDGES = ["leading", "trailing"] as const;
+type CooldownEdge = (typeof VALID_EDGES)[number];
+
+function isValidEdge(value: string): value is CooldownEdge {
+  return (VALID_EDGES satisfies readonly string[]).includes(value);
+}
+
 function parseConfigFile(content: string): NotificationSDKConfig {
   let parsed: unknown;
   try {
@@ -81,13 +95,6 @@ function parseConfigFile(content: string): NotificationSDKConfig {
   const enabled =
     typeof parsed.enabled === "boolean" ? parsed.enabled : defaults.enabled;
 
-  const VALID_SUBAGENT_MODES = ["always", "never", "separate"] as const;
-  type SubagentMode = (typeof VALID_SUBAGENT_MODES)[number];
-
-  function isValidSubagentMode(value: string): value is SubagentMode {
-    return (VALID_SUBAGENT_MODES satisfies readonly string[]).includes(value);
-  }
-
   let subagentNotifications: SubagentMode = defaults.subagentNotifications;
   if (typeof parsed.subagentNotifications === "string") {
     if (!isValidSubagentMode(parsed.subagentNotifications)) {
@@ -96,13 +103,6 @@ function parseConfigFile(content: string): NotificationSDKConfig {
       );
     }
     subagentNotifications = parsed.subagentNotifications;
-  }
-
-  const VALID_EDGES = ["leading", "trailing"] as const;
-  type CooldownEdge = (typeof VALID_EDGES)[number];
-
-  function isValidEdge(value: string): value is CooldownEdge {
-    return (VALID_EDGES satisfies readonly string[]).includes(value);
   }
 
   let cooldown: CooldownConfig | null = defaults.cooldown;
