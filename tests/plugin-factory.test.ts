@@ -248,4 +248,50 @@ describe("createNotificationPlugin", () => {
     expect(sentContexts[0].metadata.error).toBe("something went wrong");
     expect(sentContexts[0].metadata.sessionId).toBe("sess-err-1");
   });
+
+  it("should send permission.requested notification when permission.asked event fires", async () => {
+    const { createNotificationPlugin } = await import(
+      "../src/plugin-factory.js"
+    );
+
+    const sentContexts: NotificationContext[] = [];
+    const backend: NotificationBackend = {
+      send: vi.fn(async (context: NotificationContext) => {
+        sentContexts.push(context);
+      }),
+    };
+
+    const plugin = createNotificationPlugin(backend);
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    // permission.asked is not in the Event union type, so we need to
+    // construct the event hook input manually to simulate the runtime event.
+    // At runtime, OpenCode sends events not yet in the SDK's type union.
+    const eventHook = hooks.event!;
+    const permissionEvent = {
+      event: {
+        type: "permission.asked",
+        properties: {
+          sessionID: "sess-perm-1",
+          type: "file.write",
+          pattern: ["/tmp/*.txt"],
+        },
+      },
+    };
+    // @ts-expect-error permission.asked is not yet in the @opencode-ai/plugin Event union
+    await eventHook(permissionEvent);
+
+    expect(backend.send).toHaveBeenCalledOnce();
+    expect(sentContexts[0].event).toBe("permission.requested");
+    expect(sentContexts[0].title).toBe("Permission Requested");
+    expect(sentContexts[0].message).toBe(
+      "The agent needs permission to continue.",
+    );
+    expect(sentContexts[0].metadata.permissionType).toBe("file.write");
+    expect(sentContexts[0].metadata.permissionPatterns).toEqual([
+      "/tmp/*.txt",
+    ]);
+    expect(sentContexts[0].metadata.sessionId).toBe("sess-perm-1");
+  });
 });

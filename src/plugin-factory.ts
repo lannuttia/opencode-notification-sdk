@@ -6,10 +6,15 @@ import { classifySession } from "./session.js";
 import {
   extractSessionIdleMetadata,
   extractSessionErrorMetadata,
+  extractPermissionMetadata,
   buildTemplateVariables,
 } from "./events.js";
 import { getDefaultTitle, getDefaultMessage } from "./defaults.js";
 import { resolveField } from "./templates.js";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 export function createNotificationPlugin(
   backend: NotificationBackend,
@@ -21,6 +26,86 @@ export function createNotificationPlugin(
     return {
       async event({ event }) {
         if (!config.enabled) {
+          return;
+        }
+
+        // Extract the event type as a plain string so we can handle
+        // event types not yet in the @opencode-ai/plugin Event union
+        // (like "permission.asked") without TypeScript narrowing to never.
+        const eventTypeStr: string = event.type;
+
+        if (eventTypeStr === "permission.asked") {
+          const notificationEvent = "permission.requested";
+
+          if (!config.events[notificationEvent].enabled) {
+            return;
+          }
+
+          // Safely extract properties from the event object since
+          // permission.asked is not in the typed Event union
+          const props: unknown = "properties" in event ? event.properties : undefined;
+          const sessionID =
+            isRecord(props) && typeof props.sessionID === "string"
+              ? props.sessionID
+              : "";
+          const permType =
+            isRecord(props) && typeof props.type === "string"
+              ? props.type
+              : "";
+
+          let pattern: string | string[] | undefined;
+          if (isRecord(props)) {
+            if (typeof props.pattern === "string") {
+              pattern = props.pattern;
+            } else if (
+              Array.isArray(props.pattern) &&
+              props.pattern.every(
+                (p): p is string => typeof p === "string",
+              )
+            ) {
+              pattern = props.pattern;
+            }
+          }
+
+          const permissionProps = {
+            sessionID,
+            type: permType,
+            pattern,
+          };
+
+          const metadata = extractPermissionMetadata(
+            permissionProps,
+            projectName,
+          );
+
+          const templateVars = buildTemplateVariables(
+            notificationEvent,
+            metadata,
+          );
+
+          const templateConfig =
+            config.templates?.[notificationEvent] ?? null;
+
+          const title = await resolveField(
+            input.$,
+            templateConfig?.titleCmd ?? null,
+            templateVars,
+            getDefaultTitle(notificationEvent),
+          );
+
+          const message = await resolveField(
+            input.$,
+            templateConfig?.messageCmd ?? null,
+            templateVars,
+            getDefaultMessage(notificationEvent),
+          );
+
+          await backend.send({
+            event: notificationEvent,
+            title,
+            message,
+            metadata,
+          });
           return;
         }
 
