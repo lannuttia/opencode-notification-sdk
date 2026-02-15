@@ -97,12 +97,12 @@
 
 ## Phase 10: Public API (`src/index.ts`)
 
-- [ ] Export all public types and functions from `src/index.ts`
-- [ ] Write export verification tests
-- [ ] Ensure tests pass, lint is clean, and package builds cleanly
+- [x] Export all public types and functions from `src/index.ts`
+- [x] Write export verification tests
+- [x] Ensure tests pass, lint is clean, and package builds cleanly
 
 ## Phase 11: CI Pipeline
 
-- [ ] Create `.github/workflows/ci.yml` with matrix strategy for Node.js 20, 22, and 24
-- [ ] Run lint, build, and test steps in CI
-- [ ] Add publish step (runs only on latest Node.js version, on tag push)
+- [x] Create `.github/workflows/ci.yml` with matrix strategy for Node.js 20, 22, and 24
+- [x] Run lint, build, and test steps in CI
+- [x] Add publish step (runs only on latest Node.js version, on tag push)
