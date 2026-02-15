@@ -1,4 +1,4 @@
-import type { BunShell } from "@opencode-ai/plugin/shell";
+import type { PluginInput } from "@opencode-ai/plugin";
 
 function substituteVariables(
   template: string,
@@ -10,7 +10,7 @@ function substituteVariables(
 }
 
 export async function resolveField(
-  $: BunShell,
+  $: PluginInput["$"],
   commandTemplate: string | null | undefined,
   variables: Record<string, string>,
   fallback: string,
