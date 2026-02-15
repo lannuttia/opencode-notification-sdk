@@ -52,14 +52,14 @@
 
 ## Phase 6: Shell Command Templates (`src/templates.ts`)
 
-- [ ] Implement `resolveField($, commandTemplate, variables, fallback): Promise<string>` function
-- [ ] Use `{var_name}` substitution syntax (not `${var_name}`)
-- [ ] Handle null/undefined command template (return fallback)
-- [ ] Handle command failure (return fallback)
-- [ ] Handle empty stdout (return fallback)
-- [ ] Create `tests/mock-shell.ts` shared mock BunShell factory
-- [ ] Write tests in `tests/templates.test.ts`
-- [ ] Ensure tests pass and package builds cleanly
+- [x] Implement `resolveField($, commandTemplate, variables, fallback): Promise<string>` function
+- [x] Use `{var_name}` substitution syntax (not `${var_name}`)
+- [x] Handle null/undefined command template (return fallback)
+- [x] Handle command failure (return fallback)
+- [x] Handle empty stdout (return fallback)
+- [x] Create `tests/mock-shell.ts` shared mock BunShell factory
+- [x] Write tests in `tests/templates.test.ts`
+- [x] Ensure tests pass and package builds cleanly
 
 ## Phase 7: Session Filtering (`src/session.ts`)
 
