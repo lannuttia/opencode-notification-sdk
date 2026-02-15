@@ -126,4 +126,31 @@ describe("createNotificationPlugin", () => {
 
     expect(backend.send).not.toHaveBeenCalled();
   });
+
+  it("should not call backend.send() when the specific event type is disabled", async () => {
+    const configWithDisabled = createDefaultConfig();
+    configWithDisabled.events["session.complete"] = { enabled: false };
+    vi.mocked(configModule.loadConfig).mockReturnValue(configWithDisabled);
+
+    const { createNotificationPlugin } = await import(
+      "../src/plugin-factory.js"
+    );
+
+    const backend: NotificationBackend = {
+      send: vi.fn(),
+    };
+
+    const plugin = createNotificationPlugin(backend);
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    await hooks.event!({
+      event: {
+        type: "session.idle",
+        properties: { sessionID: "sess-123" },
+      },
+    });
+
+    expect(backend.send).not.toHaveBeenCalled();
+  });
 });

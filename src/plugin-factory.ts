@@ -33,6 +33,10 @@ export function createNotificationPlugin(
             return;
           }
 
+          if (!config.events[classifiedEvent].enabled) {
+            return;
+          }
+
           const metadata = extractSessionIdleMetadata(
             { sessionID },
             projectName,
