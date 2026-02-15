@@ -35,4 +35,39 @@ describe("loadConfig", () => {
     const config = loadConfig();
     expect(config).toEqual(DEFAULT_CONFIG);
   });
+
+  it("should parse a valid full config file", () => {
+    const fileConfig = {
+      enabled: false,
+      subagentNotifications: "never",
+      cooldown: {
+        duration: "PT5M",
+        edge: "trailing",
+      },
+      events: {
+        "session.complete": { enabled: true },
+        "subagent.complete": { enabled: false },
+        "session.error": { enabled: true },
+        "permission.requested": { enabled: false },
+        "question.asked": { enabled: true },
+      },
+      templates: {
+        "session.complete": {
+          titleCmd: "echo 'Done'",
+          messageCmd: null,
+        },
+      },
+      backends: {
+        ntfy: {
+          topic: "my-topic",
+          server: "https://ntfy.sh",
+        },
+      },
+    };
+
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(fileConfig));
+
+    const config = loadConfig();
+    expect(config).toEqual(fileConfig);
+  });
 });
