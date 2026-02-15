@@ -153,4 +153,60 @@ describe("createNotificationPlugin", () => {
 
     expect(backend.send).not.toHaveBeenCalled();
   });
+
+  it("should not call backend.send() for child sessions when subagentNotifications is 'never'", async () => {
+    const neverConfig = createDefaultConfig();
+    neverConfig.subagentNotifications = "never";
+    vi.mocked(configModule.loadConfig).mockReturnValue(neverConfig);
+
+    const { createNotificationPlugin } = await import(
+      "../src/plugin-factory.js"
+    );
+
+    const backend: NotificationBackend = {
+      send: vi.fn(),
+    };
+
+    const plugin = createNotificationPlugin(backend);
+    const input = createMockPluginInput({ parentID: "parent-session" });
+    const hooks = await plugin(input);
+
+    await hooks.event!({
+      event: {
+        type: "session.idle",
+        properties: { sessionID: "child-session" },
+      },
+    });
+
+    expect(backend.send).not.toHaveBeenCalled();
+  });
+
+  it("should send subagent.complete for child sessions when subagentNotifications is 'separate'", async () => {
+    const { createNotificationPlugin } = await import(
+      "../src/plugin-factory.js"
+    );
+
+    const sentContexts: NotificationContext[] = [];
+    const backend: NotificationBackend = {
+      send: vi.fn(async (context: NotificationContext) => {
+        sentContexts.push(context);
+      }),
+    };
+
+    const plugin = createNotificationPlugin(backend);
+    const input = createMockPluginInput({ parentID: "parent-session" });
+    const hooks = await plugin(input);
+
+    await hooks.event!({
+      event: {
+        type: "session.idle",
+        properties: { sessionID: "child-session" },
+      },
+    });
+
+    expect(backend.send).toHaveBeenCalledOnce();
+    expect(sentContexts[0].event).toBe("subagent.complete");
+    expect(sentContexts[0].title).toBe("Sub-agent Complete");
+    expect(sentContexts[0].metadata.isSubagent).toBe(true);
+  });
 });
