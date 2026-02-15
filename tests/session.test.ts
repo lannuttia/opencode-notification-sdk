@@ -78,6 +78,12 @@ describe("classifySession", () => {
     expect(result).toBe("session.complete");
   });
 
+  it("should not call client.session.get() in 'always' mode", async () => {
+    const client = createMockClient();
+    await classifySession(client, "any-session", "always");
+    expect(client.session.get).not.toHaveBeenCalled();
+  });
+
   it("should return null for child session in 'never' mode", async () => {
     const client = createMockClient({ parentID: "parent-123" });
     const result = await classifySession(client, "child-session", "never");
