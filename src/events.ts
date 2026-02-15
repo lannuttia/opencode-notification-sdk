@@ -12,6 +12,13 @@ function createBaseMetadata(
   };
 }
 
+/**
+ * Extract event metadata from a `session.idle` event's properties.
+ *
+ * @param properties - The event properties containing the session ID.
+ * @param projectName - The project directory basename.
+ * @returns The constructed {@link EventMetadata} for the idle event.
+ */
 export function extractSessionIdleMetadata(
   properties: { sessionID: string },
   projectName: string,
@@ -35,6 +42,16 @@ function isErrorWithMessage(value: unknown): value is ErrorWithMessage {
   );
 }
 
+/**
+ * Extract event metadata from a `session.error` event's properties.
+ *
+ * If the error object contains a `data.message` string, it is included
+ * in the metadata's `error` field.
+ *
+ * @param properties - The event properties, optionally containing session ID and error info.
+ * @param projectName - The project directory basename.
+ * @returns The constructed {@link EventMetadata} for the error event.
+ */
 export function extractSessionErrorMetadata(
   properties: { sessionID?: string; error?: unknown },
   projectName: string,
@@ -48,6 +65,16 @@ export function extractSessionErrorMetadata(
   return metadata;
 }
 
+/**
+ * Extract event metadata from a `permission.asked` event's properties.
+ *
+ * Populates the `permissionType` and `permissionPatterns` fields on the
+ * returned metadata.
+ *
+ * @param properties - The event properties containing session ID, permission type, and optional patterns.
+ * @param projectName - The project directory basename.
+ * @returns The constructed {@link EventMetadata} for the permission event.
+ */
 export function extractPermissionMetadata(
   properties: {
     sessionID: string;
@@ -68,6 +95,16 @@ export function extractPermissionMetadata(
   return metadata;
 }
 
+/**
+ * Build a template variables record for shell command substitution.
+ *
+ * Creates a flat `Record<string, string>` mapping variable names to their
+ * values, suitable for `{var_name}` substitution in shell command templates.
+ *
+ * @param event - The canonical notification event type.
+ * @param metadata - The event metadata from which to extract variable values.
+ * @returns A record of template variable names to string values.
+ */
 export function buildTemplateVariables(
   event: NotificationEvent,
   metadata: EventMetadata,

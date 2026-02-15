@@ -130,3 +130,13 @@
   - Configuration guide
   - Complete example
   - Testing tips
+
+## Phase 15: JSDoc Docstrings on Public API
+
+- [x] Add JSDoc docstrings to all exported items in `src/types.ts` (`NOTIFICATION_EVENTS`, `NotificationEvent`, `EventMetadata`, `NotificationContext`, `NotificationBackend`, `isRecord`)
+- [x] Add JSDoc docstrings to all exported items in `src/config.ts` (`NotificationSDKConfig`, `loadConfig`, `getBackendConfig`, `parseConfigFile`, `EventConfig`, `CooldownConfig`, `TemplateConfig`)
+- [x] Add JSDoc docstrings to all exported items in `src/rate-limiter.ts` (`parseISO8601Duration`, `RateLimiterOptions`, `RateLimiter`, `createRateLimiter`)
+- [x] Add JSDoc docstrings to `createNotificationPlugin` and `PluginFactoryOptions` in `src/plugin-factory.ts`
+- [x] Add JSDoc docstrings to exported functions in `src/defaults.ts` (`getDefaultTitle`, `getDefaultMessage`)
+- [x] Add JSDoc docstrings to exported functions/types in `src/events.ts`, `src/session.ts`, `src/templates.ts`
+- [x] Ensure tests pass, lint is clean, and package builds cleanly

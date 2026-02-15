@@ -59,10 +59,32 @@ async function resolveAndSend(
   }
 }
 
+/** Options for the {@link createNotificationPlugin} factory function. */
 export interface PluginFactoryOptions {
+  /**
+   * The key under `config.backends` from which to extract backend-specific
+   * configuration. When provided, the backend can retrieve its config via
+   * {@link getBackendConfig}.
+   */
   backendConfigKey?: string;
 }
 
+/**
+ * Create a fully functional OpenCode notification plugin from a backend implementation.
+ *
+ * This is the main entry point for backend plugin authors. It wires together
+ * config loading, event classification, session filtering, rate limiting,
+ * shell command template resolution, and default notification content — then
+ * calls `backend.send()` for each notification that passes all filters.
+ *
+ * Errors thrown by `backend.send()` are caught and silently ignored to ensure
+ * notifications never crash the host process.
+ *
+ * @param backend - The notification backend that implements the delivery transport.
+ * @param options - Optional configuration including a `backendConfigKey` for
+ *   extracting backend-specific config from the shared config file.
+ * @returns An OpenCode {@link Plugin} function ready to be exported as a plugin.
+ */
 export function createNotificationPlugin(
   backend: NotificationBackend,
   options?: PluginFactoryOptions,

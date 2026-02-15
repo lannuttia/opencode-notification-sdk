@@ -16,13 +16,23 @@ export interface SessionClient {
   };
 }
 
+/**
+ * The sub-agent notification mode, controlling how `session.idle` events
+ * from child sessions are handled:
+ * - `"always"` — notify for all sessions as `session.complete`
+ * - `"never"` — only notify for root sessions
+ * - `"separate"` — fire `session.complete` for root and `subagent.complete` for child
+ */
 export type SubagentMode = "always" | "never" | "separate";
 
 /**
  * Checks whether a session is a child (sub-agent) session by looking
- * for a parentID on the session object.
+ * for a `parentID` on the session object.
  *
- * Returns false if the API call fails (treats unknown sessions as root).
+ * @param client - The OpenCode client with a session API.
+ * @param sessionId - The session ID to check.
+ * @returns `true` if the session has a parent (is a sub-agent), `false` otherwise.
+ *   Returns `false` if the API call fails (treats unknown sessions as root).
  */
 export async function isChildSession(
   client: SessionClient,
@@ -37,10 +47,14 @@ export async function isChildSession(
 }
 
 /**
- * Classifies a session.idle event into a canonical notification event type
+ * Classify a `session.idle` event into a canonical notification event type
  * based on the sub-agent notification mode and whether the session is a child.
  *
- * Returns null if the event should be silently ignored.
+ * @param client - The OpenCode client with a session API.
+ * @param sessionId - The session ID to classify.
+ * @param subagentMode - The configured sub-agent notification mode.
+ * @returns The canonical event type (`"session.complete"` or `"subagent.complete"`),
+ *   or `null` if the event should be silently ignored.
  */
 export async function classifySession(
   client: SessionClient,

@@ -21,6 +21,7 @@ If there is a discrepancy between PLAN.md and this prompt, always update PLAN.md
 - **No type casting.** Never use `as`, `as any`, `as unknown`, or similar type assertions. If the types don't align, fix the type definitions or use type guards, generics, or proper type narrowing instead. This is enforced by ESLint via the `@typescript-eslint/consistent-type-assertions` rule with `assertionStyle: "never"`.
 - **Prefer constants.** Use `const` variables instead of `let` wherever the value is not reassigned. For object literals, arrays, and other compound values that should be deeply immutable, use `as const` assertions (const assertions) to narrow types to their literal values. This improves type safety, communicates intent, and prevents accidental mutation.
 - **Linting is required.** All source and test code must pass `npm run lint` before committing. The linter uses ESLint with typescript-eslint and is configured in `eslint.config.js`.
+- **Docstrings on all public API surface.** Every exported function, class, interface, type alias, and constant must have a JSDoc docstring. Docstrings should describe purpose, parameters (via `@param`), return values (via `@returns`), and any notable behavior (e.g., error handling, side effects). This applies to all items exported from `src/index.ts` and any types or functions that are part of the public API consumed by backend plugin authors.
 
 ## Specifications
 
