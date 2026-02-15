@@ -84,16 +84,16 @@
 
 ## Phase 9: Plugin Factory (`src/plugin-factory.ts`)
 
-- [ ] Implement `createNotificationPlugin(backend, options?): Plugin`
-- [ ] Load config file on plugin initialization
-- [ ] Initialize rate limiter from config
-- [ ] Return `Hooks` with `event` handler and `tool.execute.before` handler
-- [ ] In `event` handler: classify events, check enabled/rate-limit, resolve templates, call `backend.send()`
-- [ ] In `tool.execute.before` handler: detect question tool, apply same pipeline
-- [ ] Catch and ignore errors from `backend.send()`
-- [ ] Pass backend config via `getBackendConfig()` if `backendConfigKey` is provided
-- [ ] Write integration tests in `tests/plugin-factory.test.ts`
-- [ ] Ensure tests pass and package builds cleanly
+- [x] Implement `createNotificationPlugin(backend, options?): Plugin`
+- [x] Load config file on plugin initialization
+- [x] Initialize rate limiter from config
+- [x] Return `Hooks` with `event` handler and `tool.execute.before` handler
+- [x] In `event` handler: classify events, check enabled/rate-limit, resolve templates, call `backend.send()`
+- [x] In `tool.execute.before` handler: detect question tool, apply same pipeline
+- [x] Catch and ignore errors from `backend.send()`
+- [x] Pass backend config via `getBackendConfig()` if `backendConfigKey` is provided
+- [x] Write integration tests in `tests/plugin-factory.test.ts`
+- [x] Ensure tests pass and package builds cleanly
 
 ## Phase 10: Public API (`src/index.ts`)
 
