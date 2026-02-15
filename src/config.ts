@@ -51,10 +51,6 @@ function createDefaultConfig(): NotificationSDKConfig {
   };
 }
 
-function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && "code" in error;
-}
-
 const NOTIFICATION_EVENT_SET: Set<string> = new Set(NOTIFICATION_EVENTS);
 
 function isNotificationEvent(key: string): key is NotificationEvent {
@@ -182,7 +178,7 @@ export function loadConfig(): NotificationSDKConfig {
     const content = readFileSync(CONFIG_PATH, "utf-8");
     return parseConfigFile(content);
   } catch (error: unknown) {
-    if (isNodeError(error) && error.code === "ENOENT") {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       return createDefaultConfig();
     }
     throw error;
