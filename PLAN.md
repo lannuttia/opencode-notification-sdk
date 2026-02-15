@@ -63,14 +63,14 @@
 
 ## Phase 7: Session Filtering (`src/session.ts`)
 
-- [ ] Implement `isChildSession(client, sessionId): Promise<boolean>` that calls `client.session.get()`
-- [ ] Handle API failures gracefully (treat as root session)
-- [ ] Implement `classifySession(client, sessionId, subagentMode): Promise<NotificationEvent | null>`
+- [x] Implement `isChildSession(client, sessionId): Promise<boolean>` that calls `client.session.get()`
+- [x] Handle API failures gracefully (treat as root session)
+- [x] Implement `classifySession(client, sessionId, subagentMode): Promise<NotificationEvent | null>`
   - `"always"` -> always returns `session.complete`
   - `"never"` -> returns `session.complete` for root, `null` for child
   - `"separate"` -> returns `session.complete` for root, `subagent.complete` for child
-- [ ] Write tests in `tests/session.test.ts`
-- [ ] Ensure tests pass and package builds cleanly
+- [x] Write tests in `tests/session.test.ts`
+- [x] Ensure tests pass and package builds cleanly
 
 ## Phase 8: Event Classification (`src/events.ts`)
 
