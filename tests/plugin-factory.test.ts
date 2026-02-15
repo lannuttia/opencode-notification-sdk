@@ -427,6 +427,40 @@ describe("createNotificationPlugin", () => {
     );
   });
 
+  it("should silently ignore unrecognized event types", async () => {
+    const { createNotificationPlugin } = await import(
+      "../src/plugin-factory.js"
+    );
+
+    const backend: NotificationBackend = {
+      send: vi.fn(),
+    };
+
+    const plugin = createNotificationPlugin(backend);
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    // message.updated is a real Event type but not one we handle
+    await hooks.event!({
+      event: {
+        type: "message.updated",
+        properties: {
+          info: {
+            id: "msg-1",
+            sessionID: "sess-1",
+            role: "user",
+            time: { created: 0 },
+            agent: "default",
+            model: { providerID: "openai", modelID: "gpt-4" },
+            tools: {},
+          },
+        },
+      },
+    });
+
+    expect(backend.send).not.toHaveBeenCalled();
+  });
+
   it("should accept backendConfigKey option without errors", async () => {
     const configWithBackend = createDefaultConfig();
     configWithBackend.backends = {
