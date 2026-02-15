@@ -3,8 +3,8 @@ import type { Plugin } from "@opencode-ai/plugin";
 import type { PluginInput } from "@opencode-ai/plugin";
 import { isRecord } from "./types.js";
 import type { NotificationBackend, NotificationEvent, EventMetadata } from "./types.js";
-import type { NotificationSDKConfig } from "./config.js";
 import { loadConfig } from "./config.js";
+import type { NotificationSDKConfig } from "./config.js";
 import { classifySession } from "./session.js";
 import {
   extractSessionIdleMetadata,
@@ -59,12 +59,18 @@ async function resolveAndSend(
   }
 }
 
+export interface PluginFactoryOptions {
+  backendConfigKey?: string;
+}
+
 export function createNotificationPlugin(
   backend: NotificationBackend,
-  configOverride?: NotificationSDKConfig,
+  options?: PluginFactoryOptions,
 ): Plugin {
   return async (input) => {
-    const config = configOverride ?? loadConfig();
+    const config = loadConfig();
+    // backendConfigKey is available for future use by backends
+    void options?.backendConfigKey;
     const projectName = basename(input.directory);
     const rateLimiter = config.cooldown
       ? createRateLimiter(config.cooldown)

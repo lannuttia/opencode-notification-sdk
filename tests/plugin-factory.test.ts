@@ -11,6 +11,35 @@ import type { NotificationSDKConfig } from "../src/config.js";
 import { createNotificationPlugin } from "../src/plugin-factory.js";
 import { createMockShell } from "./mock-shell.js";
 
+// Mock loadConfig so plugin-factory reads config from our test fixture
+// instead of the real filesystem.
+vi.mock("../src/config.js", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../src/config.js")>();
+  return {
+    ...original,
+    loadConfig: vi.fn(() => createDefaultTestConfig()),
+  };
+});
+
+import { loadConfig } from "../src/config.js";
+
+function createDefaultTestConfig(): NotificationSDKConfig {
+  return {
+    enabled: true,
+    subagentNotifications: "separate",
+    cooldown: null,
+    events: {
+      "session.complete": { enabled: true },
+      "subagent.complete": { enabled: true },
+      "session.error": { enabled: true },
+      "permission.requested": { enabled: true },
+      "question.asked": { enabled: true },
+    },
+    templates: null,
+    backends: {},
+  };
+}
+
 /**
  * Creates a minimal mock PluginInput with a mock client whose session.get()
  * returns a root session (no parentID).
@@ -41,23 +70,6 @@ function createMockPluginInput(overrides: {
     worktree: "/test/project",
     serverUrl: new URL("http://localhost:3000"),
     $: createMockShell(),
-  };
-}
-
-function createDefaultConfig(): NotificationSDKConfig {
-  return {
-    enabled: true,
-    subagentNotifications: "separate",
-    cooldown: null,
-    events: {
-      "session.complete": { enabled: true },
-      "subagent.complete": { enabled: true },
-      "session.error": { enabled: true },
-      "permission.requested": { enabled: true },
-      "question.asked": { enabled: true },
-    },
-    templates: null,
-    backends: {},
   };
 }
 
@@ -96,11 +108,23 @@ function createTrackingBackend(): {
   return { backend, wasCalled: () => called };
 }
 
+/**
+ * Helper: configure the mocked loadConfig to return a custom config.
+ */
+function mockLoadConfig(config: NotificationSDKConfig): void {
+  vi.mocked(loadConfig).mockReturnValue(config);
+}
+
 describe("createNotificationPlugin", () => {
-  it("should call backend.send() with default title/message when session.idle fires for a root session", async () => {
+  beforeEach(() => {
+    // Reset loadConfig mock to return default config before each test
+    vi.mocked(loadConfig).mockReturnValue(createDefaultTestConfig());
+  });
+
+  it("should load config from file and call backend.send() when session.idle fires for a root session", async () => {
     const { backend, sentContexts } = createCapturingBackend();
 
-    const plugin = createNotificationPlugin(backend, createDefaultConfig());
+    const plugin = createNotificationPlugin(backend);
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -127,12 +151,13 @@ describe("createNotificationPlugin", () => {
   });
 
   it("should not call backend.send() when config.enabled is false", async () => {
-    const disabledConfig = createDefaultConfig();
+    const disabledConfig = createDefaultTestConfig();
     disabledConfig.enabled = false;
+    mockLoadConfig(disabledConfig);
 
     const { backend, wasCalled } = createTrackingBackend();
 
-    const plugin = createNotificationPlugin(backend, disabledConfig);
+    const plugin = createNotificationPlugin(backend);
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -147,12 +172,13 @@ describe("createNotificationPlugin", () => {
   });
 
   it("should not call backend.send() when the specific event type is disabled", async () => {
-    const configWithDisabled = createDefaultConfig();
+    const configWithDisabled = createDefaultTestConfig();
     configWithDisabled.events["session.complete"] = { enabled: false };
+    mockLoadConfig(configWithDisabled);
 
     const { backend, wasCalled } = createTrackingBackend();
 
-    const plugin = createNotificationPlugin(backend, configWithDisabled);
+    const plugin = createNotificationPlugin(backend);
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -167,12 +193,13 @@ describe("createNotificationPlugin", () => {
   });
 
   it("should not call backend.send() for child sessions when subagentNotifications is 'never'", async () => {
-    const neverConfig = createDefaultConfig();
+    const neverConfig = createDefaultTestConfig();
     neverConfig.subagentNotifications = "never";
+    mockLoadConfig(neverConfig);
 
     const { backend, wasCalled } = createTrackingBackend();
 
-    const plugin = createNotificationPlugin(backend, neverConfig);
+    const plugin = createNotificationPlugin(backend);
     const input = createMockPluginInput({ parentID: "parent-session" });
     const hooks = await plugin(input);
 
@@ -189,7 +216,7 @@ describe("createNotificationPlugin", () => {
   it("should send subagent.complete for child sessions when subagentNotifications is 'separate'", async () => {
     const { backend, sentContexts } = createCapturingBackend();
 
-    const plugin = createNotificationPlugin(backend, createDefaultConfig());
+    const plugin = createNotificationPlugin(backend);
     const input = createMockPluginInput({ parentID: "parent-session" });
     const hooks = await plugin(input);
 
@@ -209,7 +236,7 @@ describe("createNotificationPlugin", () => {
   it("should send session.error notification with error metadata when session.error fires", async () => {
     const { backend, sentContexts } = createCapturingBackend();
 
-    const plugin = createNotificationPlugin(backend, createDefaultConfig());
+    const plugin = createNotificationPlugin(backend);
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -239,7 +266,7 @@ describe("createNotificationPlugin", () => {
   it("should send permission.requested notification when permission.asked event fires", async () => {
     const { backend, sentContexts } = createCapturingBackend();
 
-    const plugin = createNotificationPlugin(backend, createDefaultConfig());
+    const plugin = createNotificationPlugin(backend);
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -276,7 +303,7 @@ describe("createNotificationPlugin", () => {
   it("should send question.asked notification when tool.execute.before fires with question tool", async () => {
     const { backend, sentContexts } = createCapturingBackend();
 
-    const plugin = createNotificationPlugin(backend, createDefaultConfig());
+    const plugin = createNotificationPlugin(backend);
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -299,7 +326,7 @@ describe("createNotificationPlugin", () => {
   it("should not send notification when tool.execute.before fires with a non-question tool", async () => {
     const { backend, wasCalled } = createTrackingBackend();
 
-    const plugin = createNotificationPlugin(backend, createDefaultConfig());
+    const plugin = createNotificationPlugin(backend);
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -318,7 +345,7 @@ describe("createNotificationPlugin", () => {
       },
     };
 
-    const plugin = createNotificationPlugin(backend, createDefaultConfig());
+    const plugin = createNotificationPlugin(backend);
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -334,13 +361,14 @@ describe("createNotificationPlugin", () => {
   });
 
   it("should use shell command template for title when configured", async () => {
-    const configWithTemplate = createDefaultConfig();
+    const configWithTemplate = createDefaultTestConfig();
     configWithTemplate.templates = {
       "session.complete": {
         titleCmd: "echo Custom {event} Title",
         messageCmd: null,
       },
     };
+    mockLoadConfig(configWithTemplate);
 
     const { backend, sentContexts } = createCapturingBackend();
 
@@ -349,7 +377,7 @@ describe("createNotificationPlugin", () => {
       stdout: "Custom session.complete Title\n",
     });
 
-    const plugin = createNotificationPlugin(backend, configWithTemplate);
+    const plugin = createNotificationPlugin(backend);
     const input = createMockPluginInput();
     input.$ = $;
     const hooks = await plugin(input);
@@ -372,7 +400,7 @@ describe("createNotificationPlugin", () => {
   it("should silently ignore unrecognized event types", async () => {
     const { backend, wasCalled } = createTrackingBackend();
 
-    const plugin = createNotificationPlugin(backend, createDefaultConfig());
+    const plugin = createNotificationPlugin(backend);
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -397,6 +425,35 @@ describe("createNotificationPlugin", () => {
     expect(wasCalled()).toBe(false);
   });
 
+  it("should accept options with backendConfigKey as second parameter", async () => {
+    const configWithBackend = createDefaultTestConfig();
+    configWithBackend.backends = {
+      mybackend: { topic: "test-topic", server: "https://example.com" },
+    };
+    mockLoadConfig(configWithBackend);
+
+    const { backend, sentContexts } = createCapturingBackend();
+
+    // The spec says createNotificationPlugin takes
+    //   (backend, options?: { backendConfigKey?: string })
+    // and not (backend, config?: NotificationSDKConfig)
+    const plugin = createNotificationPlugin(backend, {
+      backendConfigKey: "mybackend",
+    });
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    await hooks.event!({
+      event: {
+        type: "session.idle",
+        properties: { sessionID: "sess-bc-1" },
+      },
+    });
+
+    expect(sentContexts).toHaveLength(1);
+    expect(sentContexts[0].event).toBe("session.complete");
+  });
+
   describe("rate limiting", () => {
     beforeEach(() => {
       vi.useFakeTimers();
@@ -407,12 +464,13 @@ describe("createNotificationPlugin", () => {
     });
 
     it("should suppress repeated events within cooldown period with leading edge", async () => {
-      const configWithCooldown = createDefaultConfig();
+      const configWithCooldown = createDefaultTestConfig();
       configWithCooldown.cooldown = { duration: "PT30S", edge: "leading" };
+      mockLoadConfig(configWithCooldown);
 
       const { backend, sentContexts } = createCapturingBackend();
 
-      const plugin = createNotificationPlugin(backend, configWithCooldown);
+      const plugin = createNotificationPlugin(backend);
       const input = createMockPluginInput();
       const hooks = await plugin(input);
 
