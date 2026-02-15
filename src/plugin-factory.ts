@@ -1,6 +1,7 @@
 import { basename } from "node:path";
 import type { Plugin } from "@opencode-ai/plugin";
 import type { PluginInput } from "@opencode-ai/plugin";
+import { isRecord } from "./types.js";
 import type { NotificationBackend, NotificationEvent, EventMetadata } from "./types.js";
 import type { NotificationSDKConfig } from "./config.js";
 import { loadConfig } from "./config.js";
@@ -16,10 +17,6 @@ import { getDefaultTitle, getDefaultMessage } from "./defaults.js";
 import { resolveField } from "./templates.js";
 import { createRateLimiter } from "./rate-limiter.js";
 import type { RateLimiter } from "./rate-limiter.js";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 async function resolveAndSend(
   backend: NotificationBackend,

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { NOTIFICATION_EVENTS } from "./types.js";
+import { NOTIFICATION_EVENTS, isRecord } from "./types.js";
 import type { NotificationEvent } from "./types.js";
 
 export interface EventConfig {
@@ -53,10 +53,6 @@ function createDefaultConfig(): NotificationSDKConfig {
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function includesString(
