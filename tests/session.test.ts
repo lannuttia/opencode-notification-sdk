@@ -59,4 +59,34 @@ describe("classifySession", () => {
     const result = await classifySession(client, "root-session", "separate");
     expect(result).toBe("session.complete");
   });
+
+  it("should return 'subagent.complete' for child session in 'separate' mode", async () => {
+    const client = createMockClient({ parentID: "parent-123" });
+    const result = await classifySession(client, "child-session", "separate");
+    expect(result).toBe("subagent.complete");
+  });
+
+  it("should return 'session.complete' for child session in 'always' mode", async () => {
+    const client = createMockClient({ parentID: "parent-123" });
+    const result = await classifySession(client, "child-session", "always");
+    expect(result).toBe("session.complete");
+  });
+
+  it("should return 'session.complete' for root session in 'always' mode", async () => {
+    const client = createMockClient();
+    const result = await classifySession(client, "root-session", "always");
+    expect(result).toBe("session.complete");
+  });
+
+  it("should return null for child session in 'never' mode", async () => {
+    const client = createMockClient({ parentID: "parent-123" });
+    const result = await classifySession(client, "child-session", "never");
+    expect(result).toBeNull();
+  });
+
+  it("should return 'session.complete' for root session in 'never' mode", async () => {
+    const client = createMockClient();
+    const result = await classifySession(client, "root-session", "never");
+    expect(result).toBe("session.complete");
+  });
 });

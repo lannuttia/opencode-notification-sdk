@@ -50,11 +50,16 @@ export async function classifySession(
   sessionId: string,
   subagentMode: SubagentMode,
 ): Promise<"session.complete" | "subagent.complete" | null> {
-  const isChild = await isChildSession(client, sessionId);
-
-  if (subagentMode === "separate") {
-    return isChild ? "subagent.complete" : "session.complete";
+  if (subagentMode === "always") {
+    return "session.complete";
   }
 
-  return "session.complete";
+  const isChild = await isChildSession(client, sessionId);
+
+  if (subagentMode === "never") {
+    return isChild ? null : "session.complete";
+  }
+
+  // subagentMode === "separate"
+  return isChild ? "subagent.complete" : "session.complete";
 }
