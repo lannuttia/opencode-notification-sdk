@@ -10,7 +10,6 @@ import {
   extractSessionIdleMetadata,
   extractSessionErrorMetadata,
   extractPermissionMetadata,
-  extractQuestionMetadata,
   buildTemplateVariables,
 } from "./events.js";
 import { getDefaultTitle, getDefaultMessage } from "./defaults.js";
@@ -195,7 +194,7 @@ export function createNotificationPlugin(
           return;
         }
 
-        const metadata = extractQuestionMetadata(
+        const metadata = extractSessionIdleMetadata(
           { sessionID: toolInput.sessionID },
           projectName,
         );

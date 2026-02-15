@@ -1,15 +1,22 @@
 import type { EventMetadata, NotificationEvent } from "./types.js";
 
-export function extractSessionIdleMetadata(
-  properties: { sessionID: string },
+function createBaseMetadata(
+  sessionID: string,
   projectName: string,
 ): EventMetadata {
   return {
-    sessionId: properties.sessionID,
+    sessionId: sessionID,
     isSubagent: false,
     projectName,
     timestamp: new Date().toISOString(),
   };
+}
+
+export function extractSessionIdleMetadata(
+  properties: { sessionID: string },
+  projectName: string,
+): EventMetadata {
+  return createBaseMetadata(properties.sessionID, projectName);
 }
 
 interface ErrorWithMessage {
@@ -32,12 +39,7 @@ export function extractSessionErrorMetadata(
   properties: { sessionID?: string; error?: unknown },
   projectName: string,
 ): EventMetadata {
-  const metadata: EventMetadata = {
-    sessionId: properties.sessionID ?? "",
-    isSubagent: false,
-    projectName,
-    timestamp: new Date().toISOString(),
-  };
+  const metadata = createBaseMetadata(properties.sessionID ?? "", projectName);
 
   if (isErrorWithMessage(properties.error)) {
     metadata.error = properties.error.data.message;
@@ -54,13 +56,8 @@ export function extractPermissionMetadata(
   },
   projectName: string,
 ): EventMetadata {
-  const metadata: EventMetadata = {
-    sessionId: properties.sessionID,
-    isSubagent: false,
-    projectName,
-    timestamp: new Date().toISOString(),
-    permissionType: properties.type,
-  };
+  const metadata = createBaseMetadata(properties.sessionID, projectName);
+  metadata.permissionType = properties.type;
 
   if (properties.pattern !== undefined) {
     metadata.permissionPatterns = Array.isArray(properties.pattern)
@@ -69,18 +66,6 @@ export function extractPermissionMetadata(
   }
 
   return metadata;
-}
-
-export function extractQuestionMetadata(
-  input: { sessionID: string },
-  projectName: string,
-): EventMetadata {
-  return {
-    sessionId: input.sessionID,
-    isSubagent: false,
-    projectName,
-    timestamp: new Date().toISOString(),
-  };
 }
 
 export function buildTemplateVariables(
