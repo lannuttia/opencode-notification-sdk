@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { isChildSession } from "../src/session.js";
+import { isChildSession, classifySession } from "../src/session.js";
 
 /**
  * Creates a mock OpenCode client whose session.get() returns a session
@@ -50,5 +50,13 @@ describe("isChildSession", () => {
     };
     const result = await isChildSession(client, "any-session");
     expect(result).toBe(false);
+  });
+});
+
+describe("classifySession", () => {
+  it("should return 'session.complete' for root session in 'separate' mode", async () => {
+    const client = createMockClient();
+    const result = await classifySession(client, "root-session", "separate");
+    expect(result).toBe("session.complete");
   });
 });

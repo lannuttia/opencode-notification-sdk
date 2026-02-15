@@ -16,6 +16,8 @@ export interface SessionClient {
   };
 }
 
+export type SubagentMode = "always" | "never" | "separate";
+
 /**
  * Checks whether a session is a child (sub-agent) session by looking
  * for a parentID on the session object.
@@ -35,4 +37,24 @@ export async function isChildSession(
   } catch {
     return false;
   }
+}
+
+/**
+ * Classifies a session.idle event into a canonical notification event type
+ * based on the sub-agent notification mode and whether the session is a child.
+ *
+ * Returns null if the event should be silently ignored.
+ */
+export async function classifySession(
+  client: SessionClient,
+  sessionId: string,
+  subagentMode: SubagentMode,
+): Promise<"session.complete" | "subagent.complete" | null> {
+  const isChild = await isChildSession(client, sessionId);
+
+  if (subagentMode === "separate") {
+    return isChild ? "subagent.complete" : "session.complete";
+  }
+
+  return "session.complete";
 }
