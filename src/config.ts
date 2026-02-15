@@ -71,7 +71,7 @@ function isValidEdge(value: string): value is CooldownEdge {
   return VALID_EDGES.has(value);
 }
 
-function parseConfigFile(content: string): NotificationSDKConfig {
+export function parseConfigFile(content: string): NotificationSDKConfig {
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);

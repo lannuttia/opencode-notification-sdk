@@ -61,9 +61,10 @@ async function resolveAndSend(
 
 export function createNotificationPlugin(
   backend: NotificationBackend,
+  configOverride?: NotificationSDKConfig,
 ): Plugin {
   return async (input) => {
-    const config = loadConfig();
+    const config = configOverride ?? loadConfig();
     const projectName = basename(input.directory);
     const rateLimiter = config.cooldown
       ? createRateLimiter(config.cooldown)

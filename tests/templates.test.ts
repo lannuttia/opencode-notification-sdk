@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { resolveField } from "../src/templates.js";
-import { createMockShell, createThrowingMockShell } from "./mock-shell.js";
+import { createMockShell, createThrowingMockShell, createCapturingMockShell } from "./mock-shell.js";
 
 describe("resolveField", () => {
   it("should return fallback when command template is null", async () => {
@@ -22,19 +22,16 @@ describe("resolveField", () => {
   });
 
   it("should substitute {var_name} placeholders in the command template", async () => {
-    const $ = createMockShell({ exitCode: 0, stdout: "session.complete in my-project\n" });
+    const { $, getCapturedCommands } = createCapturingMockShell({
+      exitCode: 0,
+      stdout: "session.complete in my-project\n",
+    });
     const variables = { event: "session.complete", project: "my-project" };
     await resolveField($, "echo {event} in {project}", variables, "fallback");
 
-    // The shell function should have been called with the substituted command
-    const shellFn = vi.mocked($);
-    expect(shellFn).toHaveBeenCalledOnce();
-    const callArgs = shellFn.mock.calls[0];
-    // Tagged template: first arg is strings array, rest are expressions
-    // The expression should contain the raw substituted command
-    const expressions = callArgs.slice(1);
-    const rawExpression = expressions[0];
-    expect(rawExpression).toHaveProperty("raw", "echo session.complete in my-project");
+    const commands = getCapturedCommands();
+    expect(commands).toHaveLength(1);
+    expect(commands[0]).toBe("echo session.complete in my-project");
   });
 
   it("should return fallback when command throws an exception", async () => {
@@ -56,15 +53,16 @@ describe("resolveField", () => {
   });
 
   it("should substitute unset variables with empty strings", async () => {
-    const $ = createMockShell({ exitCode: 0, stdout: "hello \n" });
+    const { $, getCapturedCommands } = createCapturingMockShell({
+      exitCode: 0,
+      stdout: "hello \n",
+    });
     const variables = { event: "session.complete" };
     await resolveField($, "echo {event} {missing_var}", variables, "fallback");
 
-    const shellFn = vi.mocked($);
-    const callArgs = shellFn.mock.calls[0];
-    const expressions = callArgs.slice(1);
-    const rawExpression = expressions[0];
-    expect(rawExpression).toHaveProperty("raw", "echo session.complete ");
+    const commands = getCapturedCommands();
+    expect(commands).toHaveLength(1);
+    expect(commands[0]).toBe("echo session.complete ");
   });
 
   it("should return fallback when command exits with non-zero exit code", async () => {

@@ -307,6 +307,26 @@ opencode-notification-sdk/
   ralph.sh                # The loop script
 ```
 
+### Documentation: Creating a Custom Notification Plugin
+
+The project must include documentation (in a `docs/creating-a-plugin.md` file) that explains how to create a custom notification plugin using this SDK. The documentation should cover:
+
+1. **Overview** -- a brief explanation of the SDK's architecture and the role of a backend plugin (i.e., the SDK handles all decision logic; the plugin only implements delivery)
+2. **Prerequisites** -- what dependencies to install (`opencode-notification-sdk` and `@opencode-ai/plugin` as a peer dependency)
+3. **Implementing `NotificationBackend`** -- a step-by-step guide showing how to create a class or object that implements the `NotificationBackend` interface, including:
+   - The `send(context: NotificationContext): Promise<void>` method signature
+   - How to use `context.title`, `context.message`, `context.event`, and `context.metadata` to construct the notification payload
+   - Error handling expectations (the SDK catches errors from `send()`, but backends should still handle transient failures gracefully)
+4. **Using `createNotificationPlugin()`** -- how to wire the backend into a fully functional OpenCode plugin using the factory function, including:
+   - Passing the backend instance
+   - Using the `backendConfigKey` option to receive backend-specific configuration from `~/.config/opencode/notification.json`
+   - Accessing backend-specific config via `getBackendConfig()`
+5. **Configuration** -- how end users configure the plugin via the shared `notification.json` config file, including:
+   - Adding a backend-specific section under `backends`
+   - Customizing events, cooldown, and templates
+6. **Complete example** -- a full, minimal working example of a custom notification plugin (e.g., a simple webhook-based notifier) from start to finish, including the plugin entry point file that exports the plugin
+7. **Testing tips** -- guidance on how plugin authors can test their backend implementation in isolation by constructing `NotificationContext` objects directly
+
 ### Node.js Version Support
 
 The SDK must support all currently supported versions of Node.js (20, 22, and 24). This is enforced via:

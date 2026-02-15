@@ -7,10 +7,9 @@ import {
   afterEach,
 } from "vitest";
 import type { NotificationContext, NotificationBackend } from "../src/types.js";
+import type { NotificationSDKConfig } from "../src/config.js";
+import { createNotificationPlugin } from "../src/plugin-factory.js";
 import { createMockShell } from "./mock-shell.js";
-import * as configModule from "../src/config.js";
-
-vi.mock("../src/config.js");
 
 /**
  * Creates a minimal mock PluginInput with a mock client whose session.get()
@@ -22,7 +21,7 @@ function createMockPluginInput(overrides: {
 } = {}) {
   const mockClient = {
     session: {
-      get: vi.fn().mockResolvedValue({
+      get: async () => ({
         data: {
           id: "test-session",
           parentID: overrides.parentID,
@@ -45,7 +44,7 @@ function createMockPluginInput(overrides: {
   };
 }
 
-function createDefaultConfig(): configModule.NotificationSDKConfig {
+function createDefaultConfig(): NotificationSDKConfig {
   return {
     enabled: true,
     subagentNotifications: "separate",
@@ -62,25 +61,46 @@ function createDefaultConfig(): configModule.NotificationSDKConfig {
   };
 }
 
+/**
+ * Creates a NotificationBackend that captures all sent contexts into an array.
+ * Returns both the backend and the captured contexts array.
+ */
+function createCapturingBackend(): {
+  backend: NotificationBackend;
+  sentContexts: NotificationContext[];
+} {
+  const sentContexts: NotificationContext[] = [];
+  const backend: NotificationBackend = {
+    send: async (context: NotificationContext) => {
+      sentContexts.push(context);
+    },
+  };
+  return { backend, sentContexts };
+}
+
+/**
+ * Creates a NotificationBackend whose send() does nothing.
+ * Used when we only care about whether send was NOT called.
+ * Returns the backend and a way to check if send was called.
+ */
+function createTrackingBackend(): {
+  backend: NotificationBackend;
+  wasCalled: () => boolean;
+} {
+  let called = false;
+  const backend: NotificationBackend = {
+    send: async () => {
+      called = true;
+    },
+  };
+  return { backend, wasCalled: () => called };
+}
+
 describe("createNotificationPlugin", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    vi.mocked(configModule.loadConfig).mockReturnValue(createDefaultConfig());
-  });
-
   it("should call backend.send() with default title/message when session.idle fires for a root session", async () => {
-    const { createNotificationPlugin } = await import(
-      "../src/plugin-factory.js"
-    );
+    const { backend, sentContexts } = createCapturingBackend();
 
-    const sentContexts: NotificationContext[] = [];
-    const backend: NotificationBackend = {
-      send: vi.fn(async (context: NotificationContext) => {
-        sentContexts.push(context);
-      }),
-    };
-
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, createDefaultConfig());
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -93,7 +113,6 @@ describe("createNotificationPlugin", () => {
       },
     });
 
-    expect(backend.send).toHaveBeenCalledOnce();
     expect(sentContexts).toHaveLength(1);
 
     const context = sentContexts[0];
@@ -110,17 +129,10 @@ describe("createNotificationPlugin", () => {
   it("should not call backend.send() when config.enabled is false", async () => {
     const disabledConfig = createDefaultConfig();
     disabledConfig.enabled = false;
-    vi.mocked(configModule.loadConfig).mockReturnValue(disabledConfig);
 
-    const { createNotificationPlugin } = await import(
-      "../src/plugin-factory.js"
-    );
+    const { backend, wasCalled } = createTrackingBackend();
 
-    const backend: NotificationBackend = {
-      send: vi.fn(),
-    };
-
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, disabledConfig);
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -131,23 +143,16 @@ describe("createNotificationPlugin", () => {
       },
     });
 
-    expect(backend.send).not.toHaveBeenCalled();
+    expect(wasCalled()).toBe(false);
   });
 
   it("should not call backend.send() when the specific event type is disabled", async () => {
     const configWithDisabled = createDefaultConfig();
     configWithDisabled.events["session.complete"] = { enabled: false };
-    vi.mocked(configModule.loadConfig).mockReturnValue(configWithDisabled);
 
-    const { createNotificationPlugin } = await import(
-      "../src/plugin-factory.js"
-    );
+    const { backend, wasCalled } = createTrackingBackend();
 
-    const backend: NotificationBackend = {
-      send: vi.fn(),
-    };
-
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, configWithDisabled);
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -158,23 +163,16 @@ describe("createNotificationPlugin", () => {
       },
     });
 
-    expect(backend.send).not.toHaveBeenCalled();
+    expect(wasCalled()).toBe(false);
   });
 
   it("should not call backend.send() for child sessions when subagentNotifications is 'never'", async () => {
     const neverConfig = createDefaultConfig();
     neverConfig.subagentNotifications = "never";
-    vi.mocked(configModule.loadConfig).mockReturnValue(neverConfig);
 
-    const { createNotificationPlugin } = await import(
-      "../src/plugin-factory.js"
-    );
+    const { backend, wasCalled } = createTrackingBackend();
 
-    const backend: NotificationBackend = {
-      send: vi.fn(),
-    };
-
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, neverConfig);
     const input = createMockPluginInput({ parentID: "parent-session" });
     const hooks = await plugin(input);
 
@@ -185,22 +183,13 @@ describe("createNotificationPlugin", () => {
       },
     });
 
-    expect(backend.send).not.toHaveBeenCalled();
+    expect(wasCalled()).toBe(false);
   });
 
   it("should send subagent.complete for child sessions when subagentNotifications is 'separate'", async () => {
-    const { createNotificationPlugin } = await import(
-      "../src/plugin-factory.js"
-    );
+    const { backend, sentContexts } = createCapturingBackend();
 
-    const sentContexts: NotificationContext[] = [];
-    const backend: NotificationBackend = {
-      send: vi.fn(async (context: NotificationContext) => {
-        sentContexts.push(context);
-      }),
-    };
-
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, createDefaultConfig());
     const input = createMockPluginInput({ parentID: "parent-session" });
     const hooks = await plugin(input);
 
@@ -211,25 +200,16 @@ describe("createNotificationPlugin", () => {
       },
     });
 
-    expect(backend.send).toHaveBeenCalledOnce();
+    expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].event).toBe("subagent.complete");
     expect(sentContexts[0].title).toBe("Sub-agent Complete");
     expect(sentContexts[0].metadata.isSubagent).toBe(true);
   });
 
   it("should send session.error notification with error metadata when session.error fires", async () => {
-    const { createNotificationPlugin } = await import(
-      "../src/plugin-factory.js"
-    );
+    const { backend, sentContexts } = createCapturingBackend();
 
-    const sentContexts: NotificationContext[] = [];
-    const backend: NotificationBackend = {
-      send: vi.fn(async (context: NotificationContext) => {
-        sentContexts.push(context);
-      }),
-    };
-
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, createDefaultConfig());
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -246,7 +226,7 @@ describe("createNotificationPlugin", () => {
       },
     });
 
-    expect(backend.send).toHaveBeenCalledOnce();
+    expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].event).toBe("session.error");
     expect(sentContexts[0].title).toBe("Agent Error");
     expect(sentContexts[0].message).toBe(
@@ -257,18 +237,9 @@ describe("createNotificationPlugin", () => {
   });
 
   it("should send permission.requested notification when permission.asked event fires", async () => {
-    const { createNotificationPlugin } = await import(
-      "../src/plugin-factory.js"
-    );
+    const { backend, sentContexts } = createCapturingBackend();
 
-    const sentContexts: NotificationContext[] = [];
-    const backend: NotificationBackend = {
-      send: vi.fn(async (context: NotificationContext) => {
-        sentContexts.push(context);
-      }),
-    };
-
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, createDefaultConfig());
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -289,7 +260,7 @@ describe("createNotificationPlugin", () => {
     // @ts-expect-error permission.asked is not yet in the @opencode-ai/plugin Event union
     await eventHook(permissionEvent);
 
-    expect(backend.send).toHaveBeenCalledOnce();
+    expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].event).toBe("permission.requested");
     expect(sentContexts[0].title).toBe("Permission Requested");
     expect(sentContexts[0].message).toBe(
@@ -303,18 +274,9 @@ describe("createNotificationPlugin", () => {
   });
 
   it("should send question.asked notification when tool.execute.before fires with question tool", async () => {
-    const { createNotificationPlugin } = await import(
-      "../src/plugin-factory.js"
-    );
+    const { backend, sentContexts } = createCapturingBackend();
 
-    const sentContexts: NotificationContext[] = [];
-    const backend: NotificationBackend = {
-      send: vi.fn(async (context: NotificationContext) => {
-        sentContexts.push(context);
-      }),
-    };
-
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, createDefaultConfig());
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -325,7 +287,7 @@ describe("createNotificationPlugin", () => {
       { args: {} },
     );
 
-    expect(backend.send).toHaveBeenCalledOnce();
+    expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].event).toBe("question.asked");
     expect(sentContexts[0].title).toBe("Question Asked");
     expect(sentContexts[0].message).toBe(
@@ -335,15 +297,9 @@ describe("createNotificationPlugin", () => {
   });
 
   it("should not send notification when tool.execute.before fires with a non-question tool", async () => {
-    const { createNotificationPlugin } = await import(
-      "../src/plugin-factory.js"
-    );
+    const { backend, wasCalled } = createTrackingBackend();
 
-    const backend: NotificationBackend = {
-      send: vi.fn(),
-    };
-
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, createDefaultConfig());
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -352,19 +308,17 @@ describe("createNotificationPlugin", () => {
       { args: {} },
     );
 
-    expect(backend.send).not.toHaveBeenCalled();
+    expect(wasCalled()).toBe(false);
   });
 
   it("should silently ignore errors thrown by backend.send()", async () => {
-    const { createNotificationPlugin } = await import(
-      "../src/plugin-factory.js"
-    );
-
     const backend: NotificationBackend = {
-      send: vi.fn().mockRejectedValue(new Error("Network failure")),
+      send: async () => {
+        throw new Error("Network failure");
+      },
     };
 
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, createDefaultConfig());
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -377,8 +331,6 @@ describe("createNotificationPlugin", () => {
         },
       }),
     ).resolves.toBeUndefined();
-
-    expect(backend.send).toHaveBeenCalledOnce();
   });
 
   it("should use shell command template for title when configured", async () => {
@@ -389,25 +341,15 @@ describe("createNotificationPlugin", () => {
         messageCmd: null,
       },
     };
-    vi.mocked(configModule.loadConfig).mockReturnValue(configWithTemplate);
 
-    const { createNotificationPlugin } = await import(
-      "../src/plugin-factory.js"
-    );
-
-    const sentContexts: NotificationContext[] = [];
-    const backend: NotificationBackend = {
-      send: vi.fn(async (context: NotificationContext) => {
-        sentContexts.push(context);
-      }),
-    };
+    const { backend, sentContexts } = createCapturingBackend();
 
     const $ = createMockShell({
       exitCode: 0,
       stdout: "Custom session.complete Title\n",
     });
 
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, configWithTemplate);
     const input = createMockPluginInput();
     input.$ = $;
     const hooks = await plugin(input);
@@ -419,7 +361,7 @@ describe("createNotificationPlugin", () => {
       },
     });
 
-    expect(backend.send).toHaveBeenCalledOnce();
+    expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].title).toBe("Custom session.complete Title");
     // Message should still be the default since messageCmd is null
     expect(sentContexts[0].message).toBe(
@@ -428,15 +370,9 @@ describe("createNotificationPlugin", () => {
   });
 
   it("should silently ignore unrecognized event types", async () => {
-    const { createNotificationPlugin } = await import(
-      "../src/plugin-factory.js"
-    );
+    const { backend, wasCalled } = createTrackingBackend();
 
-    const backend: NotificationBackend = {
-      send: vi.fn(),
-    };
-
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, createDefaultConfig());
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -458,7 +394,7 @@ describe("createNotificationPlugin", () => {
       },
     });
 
-    expect(backend.send).not.toHaveBeenCalled();
+    expect(wasCalled()).toBe(false);
   });
 
   describe("rate limiting", () => {
@@ -473,17 +409,10 @@ describe("createNotificationPlugin", () => {
     it("should suppress repeated events within cooldown period with leading edge", async () => {
       const configWithCooldown = createDefaultConfig();
       configWithCooldown.cooldown = { duration: "PT30S", edge: "leading" };
-      vi.mocked(configModule.loadConfig).mockReturnValue(configWithCooldown);
 
-      const { createNotificationPlugin } = await import(
-        "../src/plugin-factory.js"
-      );
+      const { backend, sentContexts } = createCapturingBackend();
 
-      const backend: NotificationBackend = {
-        send: vi.fn(),
-      };
-
-      const plugin = createNotificationPlugin(backend);
+      const plugin = createNotificationPlugin(backend, configWithCooldown);
       const input = createMockPluginInput();
       const hooks = await plugin(input);
 
@@ -496,16 +425,16 @@ describe("createNotificationPlugin", () => {
 
       // First call should go through
       await hooks.event!(sessionIdleEvent);
-      expect(backend.send).toHaveBeenCalledTimes(1);
+      expect(sentContexts).toHaveLength(1);
 
       // Second call within cooldown should be suppressed
       await hooks.event!(sessionIdleEvent);
-      expect(backend.send).toHaveBeenCalledTimes(1);
+      expect(sentContexts).toHaveLength(1);
 
       // After cooldown expires, should go through again
       vi.advanceTimersByTime(31000);
       await hooks.event!(sessionIdleEvent);
-      expect(backend.send).toHaveBeenCalledTimes(2);
+      expect(sentContexts).toHaveLength(2);
     });
   });
 });

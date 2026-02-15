@@ -14,7 +14,7 @@ export { NOTIFICATION_EVENTS } from "./types.js";
 
 // Configuration
 export type { NotificationSDKConfig } from "./config.js";
-export { loadConfig, getBackendConfig } from "./config.js";
+export { loadConfig, getBackendConfig, parseConfigFile } from "./config.js";
 
 // Rate limiting
 export type { RateLimiter, RateLimiterOptions } from "./rate-limiter.js";

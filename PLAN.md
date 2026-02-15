@@ -106,3 +106,27 @@
 - [x] Create `.github/workflows/ci.yml` with matrix strategy for Node.js 20, 22, and 24
 - [x] Run lint, build, and test steps in CI
 - [x] Add publish step (runs only on latest Node.js version, on tag push)
+
+## Phase 12: Fix Lint Errors
+
+- [x] Fix type assertion (`as`) violations in `tests/mock-shell.ts` to comply with `@typescript-eslint/consistent-type-assertions` rule
+- [x] Ensure `npm run lint` passes cleanly
+
+## Phase 13: Plugin Factory Signature Fix
+
+- [ ] Update `createNotificationPlugin` signature to match spec: `(backend, options?: { backendConfigKey?: string }): Plugin`
+- [ ] Load config from file instead of accepting `configOverride` parameter
+- [ ] Make backend config available when `backendConfigKey` is provided
+- [ ] Update tests to use the new signature
+- [ ] Ensure tests pass, lint is clean, and package builds cleanly
+
+## Phase 14: Documentation
+
+- [ ] Create `docs/creating-a-plugin.md` with:
+  - Overview of SDK architecture
+  - Prerequisites
+  - Implementing `NotificationBackend`
+  - Using `createNotificationPlugin()`
+  - Configuration guide
+  - Complete example
+  - Testing tips
