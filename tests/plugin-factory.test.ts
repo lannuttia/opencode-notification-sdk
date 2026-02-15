@@ -99,4 +99,31 @@ describe("createNotificationPlugin", () => {
     expect(context.metadata.isSubagent).toBe(false);
     expect(context.metadata.projectName).toBe("project");
   });
+
+  it("should not call backend.send() when config.enabled is false", async () => {
+    const disabledConfig = createDefaultConfig();
+    disabledConfig.enabled = false;
+    vi.mocked(configModule.loadConfig).mockReturnValue(disabledConfig);
+
+    const { createNotificationPlugin } = await import(
+      "../src/plugin-factory.js"
+    );
+
+    const backend: NotificationBackend = {
+      send: vi.fn(),
+    };
+
+    const plugin = createNotificationPlugin(backend);
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    await hooks.event!({
+      event: {
+        type: "session.idle",
+        properties: { sessionID: "sess-123" },
+      },
+    });
+
+    expect(backend.send).not.toHaveBeenCalled();
+  });
 });

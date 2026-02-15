@@ -16,6 +16,10 @@ export function createNotificationPlugin(
 
     return {
       async event({ event }) {
+        if (!config.enabled) {
+          return;
+        }
+
         if (event.type === "session.idle") {
           const sessionID = event.properties.sessionID;
 
