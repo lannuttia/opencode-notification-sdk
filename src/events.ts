@@ -70,3 +70,15 @@ export function extractPermissionMetadata(
 
   return metadata;
 }
+
+export function extractQuestionMetadata(
+  input: { sessionID: string },
+  projectName: string,
+): EventMetadata {
+  return {
+    sessionId: input.sessionID,
+    isSubagent: false,
+    projectName,
+    timestamp: new Date().toISOString(),
+  };
+}
