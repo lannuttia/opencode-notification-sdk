@@ -8,19 +8,6 @@ export const NOTIFICATION_EVENTS = [
 
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
-export const EVENT_METADATA_REQUIRED_KEYS = [
-  "sessionId",
-  "isSubagent",
-  "projectName",
-  "timestamp",
-] as const;
-
-export const EVENT_METADATA_OPTIONAL_KEYS = [
-  "error",
-  "permissionType",
-  "permissionPatterns",
-] as const;
-
 export interface EventMetadata {
   sessionId: string;
   isSubagent: boolean;
@@ -30,13 +17,6 @@ export interface EventMetadata {
   permissionType?: string;
   permissionPatterns?: string[];
 }
-
-export const NOTIFICATION_CONTEXT_KEYS = [
-  "event",
-  "title",
-  "message",
-  "metadata",
-] as const;
 
 export interface NotificationContext {
   event: NotificationEvent;

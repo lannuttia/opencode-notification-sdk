@@ -1,9 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   NOTIFICATION_EVENTS,
-  EVENT_METADATA_REQUIRED_KEYS,
-  EVENT_METADATA_OPTIONAL_KEYS,
-  NOTIFICATION_CONTEXT_KEYS,
 } from "../src/types.js";
 import type {
   NotificationContext,
@@ -26,35 +23,7 @@ describe("NotificationEvent", () => {
   });
 });
 
-describe("EventMetadata", () => {
-  it("should define required keys: sessionId, isSubagent, projectName, timestamp", () => {
-    expect(EVENT_METADATA_REQUIRED_KEYS).toEqual([
-      "sessionId",
-      "isSubagent",
-      "projectName",
-      "timestamp",
-    ]);
-  });
-
-  it("should define optional keys: error, permissionType, permissionPatterns", () => {
-    expect(EVENT_METADATA_OPTIONAL_KEYS).toEqual([
-      "error",
-      "permissionType",
-      "permissionPatterns",
-    ]);
-  });
-});
-
 describe("NotificationContext", () => {
-  it("should define keys: event, title, message, metadata", () => {
-    expect(NOTIFICATION_CONTEXT_KEYS).toEqual([
-      "event",
-      "title",
-      "message",
-      "metadata",
-    ]);
-  });
-
   it("should be constructable with valid fields", () => {
     const context: NotificationContext = {
       event: "session.complete",
