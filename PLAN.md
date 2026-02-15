@@ -31,13 +31,13 @@
 
 ## Phase 4: Rate Limiter (`src/rate-limiter.ts`)
 
-- [ ] Implement `parseISO8601Duration(duration: string): number` using `iso8601-duration` library
-- [ ] Define `RateLimiterOptions` interface (duration: string, edge: "leading" | "trailing")
-- [ ] Define `RateLimiter` interface with `shouldAllow(eventType: string): boolean`
-- [ ] Implement `createRateLimiter(options: RateLimiterOptions): RateLimiter` using `throttle-debounce`
-- [ ] Handle edge cases: zero duration disables rate limiting, per-event-type independent timers
-- [ ] Write tests in `tests/rate-limiter.test.ts`
-- [ ] Ensure tests pass and package builds cleanly
+- [x] Implement `parseISO8601Duration(duration: string): number` using `iso8601-duration` library
+- [x] Define `RateLimiterOptions` interface (duration: string, edge: "leading" | "trailing")
+- [x] Define `RateLimiter` interface with `shouldAllow(eventType: string): boolean`
+- [x] Implement `createRateLimiter(options: RateLimiterOptions): RateLimiter` using `throttle-debounce`
+- [x] Handle edge cases: zero duration disables rate limiting, per-event-type independent timers
+- [x] Write tests in `tests/rate-limiter.test.ts`
+- [x] Ensure tests pass and package builds cleanly
 
 ## Phase 5: Configuration (`src/config.ts`)
 
