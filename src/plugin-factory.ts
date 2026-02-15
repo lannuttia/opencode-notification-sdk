@@ -50,12 +50,17 @@ async function resolveAndSend(
     getDefaultMessage(notificationEvent),
   );
 
-  await backend.send({
-    event: notificationEvent,
-    title,
-    message,
-    metadata,
-  });
+  try {
+    await backend.send({
+      event: notificationEvent,
+      title,
+      message,
+      metadata,
+    });
+  } catch {
+    // Silently ignore errors from backend.send() --
+    // notifications should not crash the host
+  }
 }
 
 export function createNotificationPlugin(

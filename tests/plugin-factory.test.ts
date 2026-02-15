@@ -355,6 +355,32 @@ describe("createNotificationPlugin", () => {
     expect(backend.send).not.toHaveBeenCalled();
   });
 
+  it("should silently ignore errors thrown by backend.send()", async () => {
+    const { createNotificationPlugin } = await import(
+      "../src/plugin-factory.js"
+    );
+
+    const backend: NotificationBackend = {
+      send: vi.fn().mockRejectedValue(new Error("Network failure")),
+    };
+
+    const plugin = createNotificationPlugin(backend);
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    // Should not throw even though backend.send() rejects
+    await expect(
+      hooks.event!({
+        event: {
+          type: "session.idle",
+          properties: { sessionID: "sess-err-swallow" },
+        },
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(backend.send).toHaveBeenCalledOnce();
+  });
+
   it("should use shell command template for title when configured", async () => {
     const configWithTemplate = createDefaultConfig();
     configWithTemplate.templates = {
