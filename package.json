@@ -1,0 +1,34 @@
+{
+  "name": "opencode-notification-sdk",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": "*"
+  },
+  "dependencies": {
+    "iso8601-duration": "^2.1.2",
+    "throttle-debounce": "^5.0.2"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.2.4",
+    "@types/node": "^22.0.0",
+    "@types/throttle-debounce": "^5.0.2",
+    "eslint": "^9.0.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^3.0.0"
+  }
+}

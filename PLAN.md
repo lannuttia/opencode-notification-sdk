@@ -2,15 +2,15 @@
 
 ## Phase 1: Project Scaffolding
 
-- [ ] Initialize npm project with `package.json` (name: `opencode-notification-sdk`, type: module, main/types entry points, engines: node >=20)
-- [ ] Add `@opencode-ai/plugin` as a peer dependency
-- [ ] Add `iso8601-duration` and `throttle-debounce` as runtime dependencies
-- [ ] Add dev dependencies: TypeScript, Vitest, ESLint with typescript-eslint, `@types/throttle-debounce`, `@types/node`
-- [ ] Create `tsconfig.json` with strict TypeScript config targeting ESNext
-- [ ] Create `vitest.config.ts`
-- [ ] Create `eslint.config.js` with no-cast rule (`@typescript-eslint/consistent-type-assertions` with `assertionStyle: "never"`)
-- [ ] Create `.npmrc` with `registry=https://registry.npmjs.org`
-- [ ] Verify project scaffolding builds and lints cleanly
+- [x] Initialize npm project with `package.json` (name: `opencode-notification-sdk`, type: module, main/types entry points, engines: node >=20)
+- [x] Add `@opencode-ai/plugin` as a peer dependency
+- [x] Add `iso8601-duration` and `throttle-debounce` as runtime dependencies
+- [x] Add dev dependencies: TypeScript, Vitest, ESLint with typescript-eslint, `@types/throttle-debounce`, `@types/node`
+- [x] Create `tsconfig.json` with strict TypeScript config targeting ESNext
+- [x] Create `vitest.config.ts`
+- [x] Create `eslint.config.js` with no-cast rule (`@typescript-eslint/consistent-type-assertions` with `assertionStyle: "never"`)
+- [x] Create `.npmrc` with `registry=https://registry.npmjs.org`
+- [x] Verify project scaffolding builds and lints cleanly
 
 ## Phase 2: Core Types (`src/types.ts`)
 
