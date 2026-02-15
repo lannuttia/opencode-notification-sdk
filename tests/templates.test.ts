@@ -86,4 +86,20 @@ describe("resolveField", () => {
     const result = await resolveField($, "echo custom title", {}, "fallback");
     expect(result).toBe("custom title");
   });
+
+  it("should substitute {var_name} placeholders in the command template", async () => {
+    const $ = createMockShell({ exitCode: 0, stdout: "session.complete in my-project\n" });
+    const variables = { event: "session.complete", project: "my-project" };
+    await resolveField($, "echo {event} in {project}", variables, "fallback");
+
+    // The shell function should have been called with the substituted command
+    const shellFn = vi.mocked($);
+    expect(shellFn).toHaveBeenCalledOnce();
+    const callArgs = shellFn.mock.calls[0];
+    // Tagged template: first arg is strings array, rest are expressions
+    // The expression should contain the raw substituted command
+    const expressions = callArgs.slice(1);
+    const rawExpression = expressions[0];
+    expect(rawExpression).toHaveProperty("raw", "echo session.complete in my-project");
+  });
 });
