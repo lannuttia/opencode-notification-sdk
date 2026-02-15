@@ -11,3 +11,37 @@ export function extractSessionIdleMetadata(
     timestamp: new Date().toISOString(),
   };
 }
+
+interface ErrorWithMessage {
+  data: { message: string };
+}
+
+function isErrorWithMessage(value: unknown): value is ErrorWithMessage {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "data" in value &&
+    typeof value.data === "object" &&
+    value.data !== null &&
+    "message" in value.data &&
+    typeof value.data.message === "string"
+  );
+}
+
+export function extractSessionErrorMetadata(
+  properties: { sessionID?: string; error?: unknown },
+  projectName: string,
+): EventMetadata {
+  const metadata: EventMetadata = {
+    sessionId: properties.sessionID ?? "",
+    isSubagent: false,
+    projectName,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (isErrorWithMessage(properties.error)) {
+    metadata.error = properties.error.data.message;
+  }
+
+  return metadata;
+}
