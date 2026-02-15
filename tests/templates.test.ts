@@ -1,21 +1,71 @@
 import { describe, it, expect, vi } from "vitest";
 import { resolveField } from "../src/templates.js";
-import type { BunShell } from "@opencode-ai/plugin/shell";
+import type { BunShell, BunShellOutput } from "@opencode-ai/plugin/shell";
 
-function createMockShell(): BunShell {
-  return Object.assign(
-    () => {
-      throw new Error("Mock shell: unexpected call");
+interface MockShellResult {
+  exitCode: number;
+  stdout: string;
+}
+
+function createMockShellPromise(result: MockShellResult) {
+  const stdoutBuffer = Buffer.from(result.stdout);
+  const stderrBuffer = Buffer.from("");
+
+  const output: BunShellOutput = {
+    stdout: stdoutBuffer,
+    stderr: stderrBuffer,
+    exitCode: result.exitCode,
+    text: () => result.stdout,
+    json: () => JSON.parse(result.stdout),
+    arrayBuffer: () => stdoutBuffer.buffer,
+    bytes: () => new Uint8Array(stdoutBuffer),
+    blob: () => new Blob([stdoutBuffer]),
+  };
+
+  const basePromise = Promise.resolve(output);
+
+  // Create a self-referencing chainable mock promise
+  const mockPromise = Object.assign(basePromise, {
+    stdin: new WritableStream(),
+    cwd: function () {
+      return mockPromise;
     },
-    {
-      braces: vi.fn(),
-      escape: vi.fn(),
-      env: vi.fn(),
-      cwd: vi.fn(),
-      nothrow: vi.fn(),
-      throws: vi.fn(),
+    env: function () {
+      return mockPromise;
     },
-  );
+    quiet: function () {
+      return mockPromise;
+    },
+    lines: function () {
+      throw new Error("not implemented");
+    },
+    text: () => Promise.resolve(result.stdout),
+    json: () => Promise.resolve(JSON.parse(result.stdout)),
+    arrayBuffer: () => Promise.resolve(stdoutBuffer.buffer),
+    blob: () => Promise.resolve(new Blob([stdoutBuffer])),
+    nothrow: function () {
+      return mockPromise;
+    },
+    throws: function () {
+      return mockPromise;
+    },
+  });
+
+  return mockPromise;
+}
+
+function createMockShell(result?: MockShellResult): BunShell {
+  const defaultResult: MockShellResult = { exitCode: 0, stdout: "" };
+  const shellFn = vi.fn(() => createMockShellPromise(result ?? defaultResult));
+
+  return Object.assign(shellFn, {
+    braces: vi.fn(),
+    escape: vi.fn(),
+    env: vi.fn(),
+    cwd: vi.fn(),
+    nothrow: vi.fn(),
+    throws: vi.fn(),
+  });
 }
 
 describe("resolveField", () => {
@@ -29,5 +79,11 @@ describe("resolveField", () => {
     const $ = createMockShell();
     const result = await resolveField($, undefined, {}, "default message");
     expect(result).toBe("default message");
+  });
+
+  it("should execute command and return trimmed stdout on success", async () => {
+    const $ = createMockShell({ exitCode: 0, stdout: "  custom title  \n" });
+    const result = await resolveField($, "echo custom title", {}, "fallback");
+    expect(result).toBe("custom title");
   });
 });

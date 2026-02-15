@@ -1,7 +1,7 @@
 import type { BunShell } from "@opencode-ai/plugin/shell";
 
 export async function resolveField(
-  _$: BunShell,
+  $: BunShell,
   commandTemplate: string | null | undefined,
   _variables: Record<string, string>,
   fallback: string,
@@ -9,5 +9,13 @@ export async function resolveField(
   if (commandTemplate == null) {
     return fallback;
   }
-  return fallback;
+
+  const result = await $`${{ raw: commandTemplate }}`.nothrow().quiet();
+  const output = result.text().trim();
+
+  if (result.exitCode !== 0 || output === "") {
+    return fallback;
+  }
+
+  return output;
 }
