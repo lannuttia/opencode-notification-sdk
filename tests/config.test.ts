@@ -70,4 +70,10 @@ describe("loadConfig", () => {
     const config = loadConfig();
     expect(config).toEqual(fileConfig);
   });
+
+  it("should throw a descriptive error when config file contains malformed JSON", () => {
+    vi.mocked(fs.readFileSync).mockReturnValue("{ not valid json }}}");
+
+    expect(() => loadConfig()).toThrow(/Invalid notification config/);
+  });
 });

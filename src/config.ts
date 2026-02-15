@@ -64,9 +64,16 @@ function isNotificationEvent(key: string): key is NotificationEvent {
 }
 
 function parseConfigFile(content: string): NotificationSDKConfig {
-  const parsed: unknown = JSON.parse(content);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : "unknown parse error";
+    throw new Error(`Invalid notification config: ${message}`);
+  }
   if (!isRecord(parsed)) {
-    throw new Error("Invalid config: expected a JSON object");
+    throw new Error("Invalid notification config: expected a JSON object");
   }
 
   const defaults = createDefaultConfig();
