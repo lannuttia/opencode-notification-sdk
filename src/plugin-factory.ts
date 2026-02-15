@@ -63,8 +63,13 @@ async function resolveAndSend(
   }
 }
 
+export interface PluginFactoryOptions {
+  backendConfigKey?: string;
+}
+
 export function createNotificationPlugin(
   backend: NotificationBackend,
+  options?: PluginFactoryOptions,
 ): Plugin {
   return async (input) => {
     const config = loadConfig();
@@ -72,6 +77,11 @@ export function createNotificationPlugin(
     const rateLimiter = config.cooldown
       ? createRateLimiter(config.cooldown)
       : null;
+
+    // Store the backend-specific config key for reference.
+    // Backends access their config via the exported loadConfig() and
+    // getBackendConfig() functions.
+    void options?.backendConfigKey;
 
     return {
       async event({ event }) {

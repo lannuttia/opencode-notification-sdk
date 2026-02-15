@@ -427,6 +427,41 @@ describe("createNotificationPlugin", () => {
     );
   });
 
+  it("should accept backendConfigKey option without errors", async () => {
+    const configWithBackend = createDefaultConfig();
+    configWithBackend.backends = {
+      ntfy: { topic: "my-topic", server: "https://ntfy.sh" },
+    };
+    vi.mocked(configModule.loadConfig).mockReturnValue(configWithBackend);
+
+    const { createNotificationPlugin } = await import(
+      "../src/plugin-factory.js"
+    );
+
+    const sentContexts: NotificationContext[] = [];
+    const backend: NotificationBackend = {
+      send: vi.fn(async (context: NotificationContext) => {
+        sentContexts.push(context);
+      }),
+    };
+
+    const plugin = createNotificationPlugin(backend, {
+      backendConfigKey: "ntfy",
+    });
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    await hooks.event!({
+      event: {
+        type: "session.idle",
+        properties: { sessionID: "sess-bk-1" },
+      },
+    });
+
+    expect(backend.send).toHaveBeenCalledOnce();
+    expect(sentContexts[0].event).toBe("session.complete");
+  });
+
   describe("rate limiting", () => {
     beforeEach(() => {
       vi.useFakeTimers();
