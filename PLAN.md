@@ -41,12 +41,13 @@
 
 ## Phase 5: Configuration (`src/config.ts`)
 
-- [x] Define `NotificationSDKConfig` interface matching the config file schema (no `subagentNotifications` field)
-- [x] Implement `loadConfig(): NotificationSDKConfig` that reads `~/.config/opencode/notification.json`
+- [x] Define `NotificationSDKConfig` interface with singular `backend` key (not `backends` map)
+- [x] Implement `loadConfig(backendConfigKey?)` that reads from `~/.config/opencode/notification-<key>.json` (or `notification.json` when no key)
+- [x] Implement `getConfigPath(backendConfigKey?)` for computing config file path
 - [x] Handle missing config file gracefully (return all defaults)
 - [x] Handle malformed JSON gracefully (throw descriptive error)
 - [x] Validate config values (cooldown edge enum, event types)
-- [x] Implement `getBackendConfig(config: NotificationSDKConfig, backendName: string): Record<string, unknown> | undefined`
+- [x] Implement `getBackendConfig(config)` that returns `config.backend`
 - [x] Write tests in `tests/config.test.ts`
 - [x] Ensure tests pass and package builds cleanly
 
@@ -76,13 +77,13 @@
 ## Phase 8: Plugin Factory (`src/plugin-factory.ts`)
 
 - [x] Implement `createNotificationPlugin(backend, options?): Plugin`
-- [x] Load config file on plugin initialization
+- [x] Load config file on plugin initialization using `backendConfigKey` to determine file path
 - [x] Initialize rate limiter from config
 - [x] Return `Hooks` with `event` handler only (no `tool.execute.before`)
 - [x] In `event` handler: handle `session.idle`, `session.error`, and `permission.asked` events
 - [x] For `session.idle` and `session.error`: perform subagent suppression via `client.session.get()`
 - [x] For `permission.asked`: always send notification (no subagent check)
-- [x] Check `config.enabled`, `config.events[eventType].enabled`, rate limiter
+- [x] Check ordering: `config.enabled` → `config.events[eventType].enabled` → subagent suppression → rate limiter
 - [x] Resolve title and message via shell command templates or defaults
 - [x] Call `backend.send()`, catch and ignore errors
 - [x] Plugin factory tests must NOT use `vi.mock()` -- supply dependencies directly
@@ -91,7 +92,8 @@
 
 ## Phase 9: Public API (`src/index.ts`)
 
-- [x] Export all public types and functions from `src/index.ts`
+- [x] Export only spec-required items: `createNotificationPlugin`, `loadConfig`, `getBackendConfig`, `parseISO8601Duration` (values), `NotificationBackend`, `NotificationContext`, `NotificationEvent`, `EventMetadata`, `NotificationSDKConfig`, `RateLimiter`, `RateLimiterOptions` (types)
+- [x] Do NOT export internal helpers (`NOTIFICATION_EVENTS`, `parseConfigFile`)
 - [x] Write export verification tests
 - [x] Ensure tests pass, lint is clean, and package builds cleanly
 
@@ -103,27 +105,10 @@
 
 ## Phase 11: Documentation
 
-- [x] Create `docs/creating-a-plugin.md` matching prompt spec
-- [x] Create `README.md` documenting install, configure, and use
+- [x] Create `docs/creating-a-plugin.md` matching prompt spec (per-backend config file model)
+- [x] Create `README.md` documenting install, configure, and use (per-backend config file model)
 
 ## Phase 12: JSDoc Docstrings on Public API
 
 - [x] Add JSDoc docstrings to all exported items
 - [x] Ensure tests pass, lint is clean, and package builds cleanly
-
-## Phase 13: Config Model Alignment (per-backend config files)
-
-Align the config model with the spec: each backend plugin gets its own config file
-(`~/.config/opencode/notification-<backendConfigKey>.json`) with a singular `backend`
-key instead of a shared config file with a `backends` map.
-
-- [ ] Change `NotificationSDKConfig.backends` to `backend: Record<string, unknown>` (singular)
-- [ ] Update `loadConfig()` to accept optional `backendConfigKey` parameter for config file path
-- [ ] Update `getBackendConfig<T>()` to be generic and read from `config.backend`
-- [ ] Update `parseConfigFile` to parse singular `backend` key
-- [ ] Update `createNotificationPlugin` to pass `backendConfigKey` to `loadConfig`
-- [ ] Fix check ordering: per-event enabled check before subagent suppression
-- [ ] Remove extra exports not in spec (`NOTIFICATION_EVENTS`, `parseConfigFile`)
-- [ ] Update all tests to match new config model
-- [ ] Update README.md and docs/creating-a-plugin.md for per-backend config files
-- [ ] Ensure tests pass, lint is clean, and package builds cleanly
