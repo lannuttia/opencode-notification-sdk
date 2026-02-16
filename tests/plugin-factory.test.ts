@@ -2,9 +2,6 @@ import {
   describe,
   it,
   expect,
-  vi,
-  beforeEach,
-  afterEach,
 } from "vitest";
 import type { NotificationContext, NotificationBackend } from "../src/types.js";
 import type { NotificationSDKConfig } from "../src/config.js";
@@ -15,7 +12,6 @@ import type { SessionClient } from "../src/events.js";
 function createDefaultTestConfig(): NotificationSDKConfig {
   return {
     enabled: true,
-    cooldown: null,
     events: {
       "session.idle": { enabled: true },
       "session.error": { enabled: true },
@@ -504,44 +500,4 @@ describe("createNotificationPlugin", () => {
     expect(hooks["tool.execute.before"]).toBeUndefined();
   });
 
-  describe("rate limiting", () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    it("should suppress repeated events within cooldown period with leading edge", async () => {
-      const config = createDefaultTestConfig();
-      config.cooldown = { duration: "PT30S", edge: "leading" };
-
-      const { backend, sentContexts } = createCapturingBackend();
-
-      const plugin = createNotificationPlugin(backend, { config });
-      const input = createMockPluginInput();
-      const hooks = await plugin(input);
-
-      const sessionIdleEvent = {
-        event: {
-          type: "session.idle" as const,
-          properties: { sessionID: "sess-rl1" },
-        },
-      };
-
-      // First call should go through
-      await hooks.event!(sessionIdleEvent);
-      expect(sentContexts).toHaveLength(1);
-
-      // Second call within cooldown should be suppressed
-      await hooks.event!(sessionIdleEvent);
-      expect(sentContexts).toHaveLength(1);
-
-      // After cooldown expires, should go through again
-      vi.advanceTimersByTime(31000);
-      await hooks.event!(sessionIdleEvent);
-      expect(sentContexts).toHaveLength(2);
-    });
-  });
 });

@@ -10,14 +10,6 @@ export interface EventConfig {
   enabled: boolean;
 }
 
-/** Rate limiting configuration for notification cooldowns. */
-export interface CooldownConfig {
-  /** ISO 8601 duration string (e.g., `"PT30S"`, `"PT5M"`). */
-  duration: string;
-  /** Which edge of the cooldown window triggers: `"leading"` (throttle) or `"trailing"` (debounce). */
-  edge: "leading" | "trailing";
-}
-
 /** Per-event shell command template configuration for customizing notification content. */
 export interface TemplateConfig {
   /** Shell command to generate the notification title, or `null` for the default. */
@@ -32,13 +24,11 @@ export interface TemplateConfig {
  * Loaded from `~/.config/opencode/notification-<backendConfigKey>.json`
  * (or `~/.config/opencode/notification.json` when no key is provided).
  * When the config file does not exist, all defaults are used (everything
- * enabled, no cooldown, no templates, empty backend config).
+ * enabled, no templates, empty backend config).
  */
 export interface NotificationSDKConfig {
   /** Global kill switch for all notifications. Defaults to `true`. */
   enabled: boolean;
-  /** Rate limiting configuration, or `null` to disable rate limiting. Defaults to `null`. */
-  cooldown: CooldownConfig | null;
   /** Per-event enable/disable toggles. All events are enabled by default. */
   events: Record<NotificationEvent, EventConfig>;
   /** Per-event shell command templates for customizing notification content, or `null` for defaults. */
@@ -68,7 +58,6 @@ export function getConfigPath(backendConfigKey?: string): string {
 function createDefaultConfig(): NotificationSDKConfig {
   return {
     enabled: true,
-    cooldown: null,
     events: {
       "session.idle": { enabled: true },
       "session.error": { enabled: true },
@@ -85,22 +74,14 @@ function isNotificationEvent(key: string): key is NotificationEvent {
   return NOTIFICATION_EVENT_SET.has(key);
 }
 
-const VALID_EDGES: Set<string> = new Set(["leading", "trailing"]);
-type CooldownEdge = "leading" | "trailing";
-
-function isValidEdge(value: string): value is CooldownEdge {
-  return VALID_EDGES.has(value);
-}
-
 /**
  * Parse a JSON config string into a validated {@link NotificationSDKConfig}.
  *
- * Applies defaults for any missing fields and validates enum values
- * (`cooldown.edge`).
+ * Applies defaults for any missing fields.
  *
  * @param content - The raw JSON string to parse.
  * @returns The parsed and validated configuration object with defaults applied.
- * @throws {Error} If the JSON is malformed or contains invalid enum values.
+ * @throws {Error} If the JSON is malformed.
  */
 export function parseConfigFile(content: string): NotificationSDKConfig {
   let parsed: unknown;
@@ -119,28 +100,6 @@ export function parseConfigFile(content: string): NotificationSDKConfig {
 
   const enabled =
     typeof parsed.enabled === "boolean" ? parsed.enabled : defaults.enabled;
-
-  let cooldown: CooldownConfig | null = defaults.cooldown;
-  if (parsed.cooldown === null) {
-    cooldown = null;
-  } else if (isRecord(parsed.cooldown)) {
-    const duration =
-      typeof parsed.cooldown.duration === "string"
-        ? parsed.cooldown.duration
-        : "";
-
-    let edge: CooldownEdge = "leading";
-    if (typeof parsed.cooldown.edge === "string") {
-      if (!isValidEdge(parsed.cooldown.edge)) {
-        throw new Error(
-          `Invalid notification config: cooldown.edge must be one of ${[...VALID_EDGES].join(", ")}, got "${parsed.cooldown.edge}"`,
-        );
-      }
-      edge = parsed.cooldown.edge;
-    }
-
-    cooldown = { duration, edge };
-  }
 
   const events = { ...defaults.events };
   if (isRecord(parsed.events)) {
@@ -181,7 +140,6 @@ export function parseConfigFile(content: string): NotificationSDKConfig {
 
   return {
     enabled,
-    cooldown,
     events,
     templates,
     backend,
@@ -196,7 +154,7 @@ export function parseConfigFile(content: string): NotificationSDKConfig {
  * When omitted, reads from `~/.config/opencode/notification.json`.
  *
  * If the config file does not exist, returns an all-defaults configuration
- * (everything enabled, no cooldown, no templates, empty backend config).
+ * (everything enabled, no templates, empty backend config).
  * If the file exists but contains invalid JSON or invalid config values,
  * throws an error.
  *

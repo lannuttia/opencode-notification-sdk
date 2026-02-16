@@ -6,7 +6,6 @@ import type { NotificationSDKConfig } from "../src/config.js";
 
 const DEFAULT_CONFIG: NotificationSDKConfig = {
   enabled: true,
-  cooldown: null,
   events: {
     "session.idle": { enabled: true },
     "session.error": { enabled: true },
@@ -23,7 +22,6 @@ describe("loadConfig", () => {
     // Either way, the result should have the correct shape.
     const config = loadConfig();
     expect(config).toHaveProperty("enabled");
-    expect(config).toHaveProperty("cooldown");
     expect(config).toHaveProperty("events");
     expect(config).toHaveProperty("templates");
     expect(config).toHaveProperty("backend");
@@ -66,10 +64,6 @@ describe("parseConfigFile", () => {
   it("should parse a valid full config file with singular backend key", () => {
     const fileConfig = {
       enabled: false,
-      cooldown: {
-        duration: "PT5M",
-        edge: "trailing",
-      },
       events: {
         "session.idle": { enabled: true },
         "session.error": { enabled: true },
@@ -99,7 +93,6 @@ describe("parseConfigFile", () => {
     const partialConfig = { enabled: false };
     const config = parseConfigFile(JSON.stringify(partialConfig));
     expect(config.enabled).toBe(false);
-    expect(config.cooldown).toBeNull();
     expect(config.events["session.idle"].enabled).toBe(true);
     expect(config.events["session.error"].enabled).toBe(true);
     expect(config.events["permission.asked"].enabled).toBe(true);
@@ -122,24 +115,6 @@ describe("parseConfigFile", () => {
     expect(config.events["permission.asked"].enabled).toBe(true);
   });
 
-  it("should use default cooldown edge when only duration is specified", () => {
-    const partialConfig = {
-      cooldown: { duration: "PT30S" },
-    };
-    const config = parseConfigFile(JSON.stringify(partialConfig));
-    expect(config.cooldown).toEqual({
-      duration: "PT30S",
-      edge: "leading",
-    });
-  });
-
-  it("should throw when cooldown.edge has an invalid value", () => {
-    const invalidConfig = {
-      cooldown: { duration: "PT30S", edge: "middle" },
-    };
-    expect(() => parseConfigFile(JSON.stringify(invalidConfig))).toThrow(/Invalid notification config/);
-    expect(() => parseConfigFile(JSON.stringify(invalidConfig))).toThrow(/edge/);
-  });
 });
 
 describe("getBackendConfig", () => {

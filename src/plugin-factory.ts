@@ -15,8 +15,6 @@ import {
 import type { SessionClient } from "./events.js";
 import { getDefaultTitle, getDefaultMessage } from "./defaults.js";
 import { resolveField } from "./templates.js";
-import { createRateLimiter } from "./rate-limiter.js";
-import type { RateLimiter } from "./rate-limiter.js";
 
 async function resolveAndSend(
   backend: NotificationBackend,
@@ -24,12 +22,7 @@ async function resolveAndSend(
   config: NotificationSDKConfig,
   notificationEvent: NotificationEvent,
   metadata: EventMetadata,
-  rateLimiter: RateLimiter | null,
 ): Promise<void> {
-  if (rateLimiter !== null && !rateLimiter.shouldAllow(notificationEvent)) {
-    return;
-  }
-
   const templateVars = buildTemplateVariables(notificationEvent, metadata);
   const templateConfig = config.templates?.[notificationEvent] ?? null;
 
@@ -79,9 +72,9 @@ export interface PluginFactoryOptions {
  * Create a fully functional OpenCode notification plugin from a backend implementation.
  *
  * This is the main entry point for backend plugin authors. It wires together
- * config loading, event classification, subagent suppression, rate limiting,
- * shell command template resolution, and default notification content — then
- * calls `backend.send()` for each notification that passes all filters.
+ * config loading, event classification, subagent suppression, shell command
+ * template resolution, and default notification content — then calls
+ * `backend.send()` for each notification that passes all filters.
  *
  * Errors thrown by `backend.send()` are caught and silently ignored to ensure
  * notifications never crash the host process.
@@ -98,9 +91,6 @@ export function createNotificationPlugin(
   return async (input) => {
     const config = options?.config ?? loadConfig(options?.backendConfigKey);
     const projectName = basename(input.directory);
-    const rateLimiter = config.cooldown
-      ? createRateLimiter(config.cooldown)
-      : null;
 
     // Extract the client's session API. We use our own SessionClient interface
     // to keep the mock surface small in tests.
@@ -166,7 +156,7 @@ export function createNotificationPlugin(
           );
 
           await resolveAndSend(
-            backend, input.$, config, notificationEvent, metadata, rateLimiter,
+            backend, input.$, config, notificationEvent, metadata,
           );
           return;
         }
@@ -192,7 +182,7 @@ export function createNotificationPlugin(
           );
 
           await resolveAndSend(
-            backend, input.$, config, notificationEvent, metadata, rateLimiter,
+            backend, input.$, config, notificationEvent, metadata,
           );
         }
 
@@ -219,7 +209,7 @@ export function createNotificationPlugin(
           );
 
           await resolveAndSend(
-            backend, input.$, config, notificationEvent, metadata, rateLimiter,
+            backend, input.$, config, notificationEvent, metadata,
           );
         }
       },

@@ -8,7 +8,6 @@ The `opencode-notification-sdk` handles all notification decision logic:
 
 - **Event filtering** -- determining which OpenCode plugin events should trigger notifications
 - **Subagent suppression** -- silently suppressing notifications from sub-agent (child) sessions for `session.idle` and `session.error` events
-- **Rate limiting** -- configurable per-event cooldown to prevent notification spam
 - **Shell command templates** -- user-customizable notification titles and messages via shell commands
 - **Default content** -- sensible default titles and messages for every event type
 
@@ -164,10 +163,6 @@ For example, if your plugin uses `backendConfigKey: "webhook"`, users create `~/
 ```json
 {
   "enabled": true,
-  "cooldown": {
-    "duration": "PT30S",
-    "edge": "leading"
-  },
   "events": {
     "session.idle": { "enabled": true },
     "session.error": { "enabled": true },
@@ -191,13 +186,14 @@ For example, if your plugin uses `backendConfigKey: "webhook"`, users create `~/
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `enabled` | `boolean` | `true` | Global kill switch for all notifications |
-| `cooldown` | `object \| null` | `null` | Rate limiting config (ISO 8601 duration + edge) |
+| `events` | `object` | (all enabled) | Per-event enable/disable toggles |
 | `events.<type>.enabled` | `boolean` | `true` | Per-event enable/disable toggle |
+| `templates` | `object \| null` | `null` | Per-event shell command templates |
 | `templates.<type>.titleCmd` | `string \| null` | `null` | Shell command to generate the notification title |
 | `templates.<type>.messageCmd` | `string \| null` | `null` | Shell command to generate the notification message |
 | `backend` | `object` | `{}` | Backend-specific configuration (your plugin reads this) |
 
-When the config file does not exist, all defaults are used (everything enabled, no cooldown, no templates, empty backend config).
+When the config file does not exist, all defaults are used (everything enabled, no templates, empty backend config).
 
 ### Adding backend-specific config
 

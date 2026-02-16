@@ -65,8 +65,8 @@ export interface NotificationContext {
  *
  * Backend plugins are responsible only for delivering notifications via their
  * transport (HTTP, desktop notification, Slack, etc.). The SDK handles all
- * decision logic (event classification, filtering, rate limiting, content
- * resolution) before calling {@link NotificationBackend.send}.
+ * decision logic (event classification, filtering, subagent suppression,
+ * content resolution) before calling {@link NotificationBackend.send}.
  *
  * Errors thrown by `send()` are caught and silently ignored by the SDK to
  * ensure notifications never crash the host process.

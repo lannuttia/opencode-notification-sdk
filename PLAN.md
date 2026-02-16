@@ -4,8 +4,7 @@
 
 - [x] Initialize npm project with `package.json` (name: `opencode-notification-sdk`, type: module, main/types entry points, engines: node >=20)
 - [x] Add `@opencode-ai/plugin` as a peer dependency
-- [x] Add `iso8601-duration` and `throttle-debounce` as runtime dependencies
-- [x] Add dev dependencies: TypeScript, Vitest, ESLint with typescript-eslint, `@types/throttle-debounce`, `@types/node`
+- [x] Add dev dependencies: TypeScript, Vitest, ESLint with typescript-eslint, `@types/node`
 - [x] Create `tsconfig.json` with strict TypeScript config targeting ESNext
 - [x] Create `vitest.config.ts`
 - [x] Create `eslint.config.js` with no-cast rule (`@typescript-eslint/consistent-type-assertions` with `assertionStyle: "never"`)
@@ -29,29 +28,18 @@
 - [x] Write tests in `tests/defaults.test.ts`
 - [x] Ensure tests pass and package builds cleanly
 
-## Phase 4: Rate Limiter (`src/rate-limiter.ts`)
-
-- [x] Implement `parseISO8601Duration(duration: string): number` using `iso8601-duration` library
-- [x] Define `RateLimiterOptions` interface (duration: string, edge: "leading" | "trailing")
-- [x] Define `RateLimiter` interface with `shouldAllow(eventType: string): boolean`
-- [x] Implement `createRateLimiter(options: RateLimiterOptions): RateLimiter` using `throttle-debounce`
-- [x] Handle edge cases: zero duration disables rate limiting, per-event-type independent timers
-- [x] Write tests in `tests/rate-limiter.test.ts`
-- [x] Ensure tests pass and package builds cleanly
-
-## Phase 5: Configuration (`src/config.ts`)
+## Phase 4: Configuration (`src/config.ts`)
 
 - [x] Define `NotificationSDKConfig` interface with singular `backend` key (not `backends` map)
 - [x] Implement `loadConfig(backendConfigKey?)` that reads from `~/.config/opencode/notification-<key>.json` (or `notification.json` when no key)
 - [x] Implement `getConfigPath(backendConfigKey?)` for computing config file path
 - [x] Handle missing config file gracefully (return all defaults)
 - [x] Handle malformed JSON gracefully (throw descriptive error)
-- [x] Validate config values (cooldown edge enum, event types)
 - [x] Implement `getBackendConfig(config)` that returns `config.backend`
 - [x] Write tests in `tests/config.test.ts`
 - [x] Ensure tests pass and package builds cleanly
 
-## Phase 6: Shell Command Templates (`src/templates.ts`)
+## Phase 5: Shell Command Templates (`src/templates.ts`)
 
 - [x] Implement `resolveField($, commandTemplate, variables, fallback): Promise<string>` function
 - [x] Use `{var_name}` substitution syntax (not `${var_name}`)
@@ -62,7 +50,7 @@
 - [x] Write tests in `tests/templates.test.ts`
 - [x] Ensure tests pass and package builds cleanly
 
-## Phase 7: Event Filtering (`src/events.ts`)
+## Phase 6: Event Filtering (`src/events.ts`)
 
 - [x] Implement event metadata extraction for each event type
 - [x] Implement subagent suppression: use `client.session.get()` to check `parentID` for `session.idle` and `session.error` events
@@ -74,41 +62,40 @@
 - [x] Write tests in `tests/events.test.ts`
 - [x] Ensure tests pass and package builds cleanly
 
-## Phase 8: Plugin Factory (`src/plugin-factory.ts`)
+## Phase 7: Plugin Factory (`src/plugin-factory.ts`)
 
 - [x] Implement `createNotificationPlugin(backend, options?): Plugin`
 - [x] Load config file on plugin initialization using `backendConfigKey` to determine file path
-- [x] Initialize rate limiter from config
 - [x] Return `Hooks` with `event` handler only (no `tool.execute.before`)
 - [x] In `event` handler: handle `session.idle`, `session.error`, and `permission.asked` events
 - [x] For `session.idle` and `session.error`: perform subagent suppression via `client.session.get()`
 - [x] For `permission.asked`: always send notification (no subagent check)
-- [x] Check ordering: `config.enabled` → `config.events[eventType].enabled` → subagent suppression → rate limiter
+- [x] Check ordering: `config.enabled` → `config.events[eventType].enabled` → subagent suppression → resolve title/message → call `backend.send()`
 - [x] Resolve title and message via shell command templates or defaults
 - [x] Call `backend.send()`, catch and ignore errors
 - [x] Plugin factory tests must NOT use `vi.mock()` -- supply dependencies directly
 - [x] Write integration tests in `tests/plugin-factory.test.ts`
 - [x] Ensure tests pass and package builds cleanly
 
-## Phase 9: Public API (`src/index.ts`)
+## Phase 8: Public API (`src/index.ts`)
 
-- [x] Export only spec-required items: `createNotificationPlugin`, `loadConfig`, `getBackendConfig`, `parseISO8601Duration` (values), `NotificationBackend`, `NotificationContext`, `NotificationEvent`, `EventMetadata`, `NotificationSDKConfig`, `RateLimiter`, `RateLimiterOptions` (types)
+- [x] Export only spec-required items: `createNotificationPlugin`, `loadConfig`, `getBackendConfig` (values), `NotificationBackend`, `NotificationContext`, `NotificationEvent`, `EventMetadata`, `NotificationSDKConfig` (types)
 - [x] Do NOT export internal helpers (`NOTIFICATION_EVENTS`, `parseConfigFile`)
 - [x] Write export verification tests
 - [x] Ensure tests pass, lint is clean, and package builds cleanly
 
-## Phase 10: CI Pipeline
+## Phase 9: CI Pipeline
 
 - [x] Create `.github/workflows/ci.yml` with matrix strategy for Node.js 20, 22, and 24
 - [x] Run lint, build, and test steps in CI
 - [x] Add publish step (runs only on latest Node.js version, on tag push)
 
-## Phase 11: Documentation
+## Phase 10: Documentation
 
 - [x] Create `docs/creating-a-plugin.md` matching prompt spec (per-backend config file model)
 - [x] Create `README.md` documenting install, configure, and use (per-backend config file model)
 
-## Phase 12: JSDoc Docstrings on Public API
+## Phase 11: JSDoc Docstrings on Public API
 
 - [x] Add JSDoc docstrings to all exported items
 - [x] Ensure tests pass, lint is clean, and package builds cleanly

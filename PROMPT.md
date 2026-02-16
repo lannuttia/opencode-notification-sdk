@@ -4,7 +4,7 @@ You are building a TypeScript SDK that provides a standard notification decision
 
 ## Goal
 
-Build a TypeScript library (`opencode-notification-sdk`) that handles all notification decision logic -- event filtering, rate limiting, and shell command templates -- so that notification backend plugins (ntfy.sh, desktop notifications, Slack, etc.) only need to implement a simple `send()` method.
+Build a TypeScript library (`opencode-notification-sdk`) that handles all notification decision logic -- event filtering and shell command templates -- so that notification backend plugins (ntfy.sh, desktop notifications, Slack, etc.) only need to implement a simple `send()` method.
 
 ## Instructions
 
@@ -34,10 +34,9 @@ The SDK is a standalone npm package that backend notification plugins depend on.
 
 1. **Event filtering** -- determining which OpenCode plugin events should trigger notifications
 2. **Subagent suppression** -- silently suppressing notifications from sub-agent (child) sessions
-3. **Rate limiting** -- configurable per-event cooldown with leading/trailing edge
-4. **Shell command templates** -- customizable notification fields via shell commands with `{var}` substitution
-5. **Default notification content** -- sensible defaults for titles, messages, and metadata per event type
-6. **Plugin factory** -- a `createNotificationPlugin()` function that wires everything together and returns OpenCode `Hooks`
+3. **Shell command templates** -- customizable notification fields via shell commands with `{var}` substitution
+4. **Default notification content** -- sensible defaults for titles, messages, and metadata per event type
+5. **Plugin factory** -- a `createNotificationPlugin()` function that wires everything together and returns OpenCode `Hooks`
 
 Backend plugins implement a single `NotificationBackend` interface and call `createNotificationPlugin()` to get a fully functional plugin.
 
@@ -67,22 +66,6 @@ The SDK must classify raw OpenCode events and determine whether a notification s
 4. For `permission.asked` events (note: this event type string is not yet in the `@opencode-ai/plugin` SDK's `Event` union, so it must be handled via string comparison on `event.type`): always sends a notification.
 5. Extracts event metadata (error messages, permission types, patterns, session IDs, timestamps)
 
-### Rate Limiting (`src/rate-limiter.ts`)
-
-The SDK must provide configurable per-event-type rate limiting:
-
-- Cooldown duration specified as an ISO 8601 duration string (e.g., `PT30S`, `PT5M`). Parsed using a small third-party ISO 8601 duration library (e.g., `iso8601-duration`).
-- Cooldown edge: `"leading"` (throttle -- first event fires immediately, subsequent suppressed) or `"trailing"` (debounce -- fires after quiet period). Uses a small third-party throttle/debounce library (e.g., `throttle-debounce`).
-- Rate limiting is tracked per event type (e.g., `session.idle` and `session.error` have independent cooldown timers).
-- When cooldown is not configured, no rate limiting is applied.
-- A cooldown of `PT0S` (zero seconds) disables rate limiting.
-
-This module exposes:
-
-- `parseISO8601Duration(duration: string): number` -- parses an ISO 8601 duration string and returns milliseconds
-- `createRateLimiter(options: RateLimiterOptions): RateLimiter` -- creates a stateful rate limiter
-- `RateLimiter.shouldAllow(eventType: string): boolean` -- returns whether a notification should be sent
-
 ### Configuration (`src/config.ts`)
 
 Each plugin that uses the SDK gets its own configuration file. The config file path is determined by the `backendConfigKey` provided to `createNotificationPlugin()`: `~/.config/opencode/notification-<backendConfigKey>.json`. For example, a plugin with `backendConfigKey: "ntfy"` reads from `~/.config/opencode/notification-ntfy.json`, and a plugin with `backendConfigKey: "desktop"` reads from `~/.config/opencode/notification-desktop.json`.
@@ -103,10 +86,6 @@ Each plugin's config file contains the shared notification settings plus a singl
 ```json
 {
   "enabled": true,
-  "cooldown": {
-    "duration": "PT30S",
-    "edge": "leading"
-  },
   "events": {
     "session.idle": { "enabled": true },
     "session.error": { "enabled": true },
@@ -144,9 +123,6 @@ And `~/.config/opencode/notification-desktop.json`:
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `enabled` | `boolean` | `true` | Global kill switch for all notifications from this plugin |
-| `cooldown` | `object \| null` | `null` | Rate limiting configuration |
-| `cooldown.duration` | `string` | (required if cooldown set) | ISO 8601 duration string |
-| `cooldown.edge` | `"leading" \| "trailing"` | `"leading"` | Which edge of the cooldown window triggers |
 | `events` | `object` | (all enabled) | Per-event enable/disable toggles |
 | `events.<type>.enabled` | `boolean` | `true` | Whether this event type triggers notifications |
 | `templates` | `object \| null` | `null` | Per-event shell command templates |
@@ -154,7 +130,7 @@ And `~/.config/opencode/notification-desktop.json`:
 | `templates.<type>.messageCmd` | `string \| null` | `null` | Shell command to generate notification message |
 | `backend` | `object` | `{}` | Backend-specific configuration for this plugin |
 
-When the config file does not exist, all defaults are used (everything enabled, no cooldown, no templates, empty backend config).
+When the config file does not exist, all defaults are used (everything enabled, no templates, empty backend config).
 
 ### Default Notification Content (`src/defaults.ts`)
 
@@ -191,7 +167,7 @@ Notification fields (title, message) can be customized per event type via shell 
 
 ### Notification Context (`src/types.ts`)
 
-When a notification passes all filters (enabled, event config, rate limiter, subagent suppression), the SDK produces a `NotificationContext` object and passes it to the backend:
+When a notification passes all filters (enabled, event config, subagent suppression), the SDK produces a `NotificationContext` object and passes it to the backend:
 
 ```typescript
 interface NotificationContext {
@@ -239,14 +215,13 @@ function createNotificationPlugin(
 This function:
 
 1. Returns an OpenCode `Plugin` function (matching the `@opencode-ai/plugin` `Plugin` type)
-2. When invoked by OpenCode, loads the plugin's config file (determined by `backendConfigKey`), initializes the rate limiter, and returns `Hooks`
+2. When invoked by OpenCode, loads the plugin's config file (determined by `backendConfigKey`) and returns `Hooks`
 3. The returned `Hooks` include:
    - `event` handler -- handles `session.idle`, `session.error`, and `permission.asked` events
 4. For each event:
    - Checks `config.enabled` (global kill switch)
    - Checks `config.events[eventType].enabled` (per-event toggle)
    - Performs subagent suppression for `session.idle` and `session.error` events
-   - Checks rate limiter (`rateLimiter.shouldAllow(eventType)`)
    - Resolves title and message via shell command templates or defaults
    - Calls `backend.send(context)`
    - Catches and ignores errors from `backend.send()`
@@ -264,18 +239,12 @@ The SDK exports the following from `src/index.ts`:
 - `NotificationSDKConfig` -- the full config type
 - `loadConfig` -- the config loading function (accepts an optional `backendConfigKey` to determine the config file path)
 - `getBackendConfig` -- the backend config extraction function
-- `parseISO8601Duration` -- exposed for backends that need duration parsing
-- `RateLimiter` -- the rate limiter interface type
-- `RateLimiterOptions` -- the rate limiter options type
 
 ### Tech Stack
 
 - TypeScript with strict mode
 - ESLint with typescript-eslint for linting
 - Vitest for testing
-- Small third-party runtime dependencies:
-  - A small library for parsing ISO 8601 duration strings (e.g., `iso8601-duration`)
-  - A small library for debouncing/throttling (e.g., `throttle-debounce`)
 - `@opencode-ai/plugin` as a peer dependency (the SDK needs the `Plugin`, `PluginInput`, `Hooks`, and `Event` types)
 - Publishable as an npm package
 
@@ -287,7 +256,6 @@ opencode-notification-sdk/
     index.ts              # Public API exports
     types.ts              # NotificationEvent, NotificationContext, NotificationBackend, EventMetadata
     events.ts             # Event filtering and subagent suppression
-    rate-limiter.ts       # ISO 8601 duration parsing, per-event cooldown
     config.ts             # Config file loading, validation, backend config extraction
     defaults.ts           # Default notification content per event type
     templates.ts          # Shell command template execution with {var} substitution
@@ -295,7 +263,6 @@ opencode-notification-sdk/
   tests/
     types.test.ts         # Type conformance tests
     events.test.ts        # Event filtering and subagent suppression tests
-    rate-limiter.test.ts  # Rate limiter and duration parsing tests
     config.test.ts        # Config loading and validation tests
     defaults.test.ts      # Default content tests
     templates.test.ts     # Template execution tests
@@ -325,7 +292,7 @@ The project must include documentation (in a `docs/creating-a-plugin.md` file) t
    - Accessing backend-specific config via `getBackendConfig()`
 5. **Configuration** -- how end users configure the plugin via its own config file (`~/.config/opencode/notification-<backendConfigKey>.json`), including:
    - The `backend` section for backend-specific settings
-   - Customizing events, cooldown, and templates
+   - Customizing events and templates
 6. **Complete example** -- a full, minimal working example of a custom notification plugin (e.g., a simple webhook-based notifier) from start to finish, including the plugin entry point file that exports the plugin
 7. **Testing tips** -- guidance on how plugin authors can test their backend implementation in isolation by constructing `NotificationContext` objects directly
 

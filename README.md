@@ -6,7 +6,6 @@ A TypeScript SDK that provides a standard notification decision engine for [Open
 
 - **Event filtering** -- determines which OpenCode events should trigger notifications
 - **Subagent suppression** -- silently suppresses notifications from sub-agent (child) sessions
-- **Rate limiting** -- configurable per-event cooldown with leading (throttle) or trailing (debounce) edge
 - **Shell command templates** -- customizable notification titles and messages via shell commands with `{var}` substitution
 - **Default notification content** -- sensible defaults for titles and messages per event type
 
@@ -53,7 +52,7 @@ const plugin = createNotificationPlugin(myBackend, {
 export default plugin;
 ```
 
-That's it. The SDK handles event filtering, subagent suppression, rate limiting, and content resolution. Your backend only delivers the notification.
+That's it. The SDK handles event filtering, subagent suppression, and content resolution. Your backend only delivers the notification.
 
 ## Configuration
 
@@ -65,17 +64,13 @@ Each backend plugin has its own config file. The config file path is determined 
 
 For example, a plugin with `backendConfigKey: "ntfy"` reads from `~/.config/opencode/notification-ntfy.json`. If no `backendConfigKey` is provided, the SDK falls back to `~/.config/opencode/notification.json`.
 
-When the config file does not exist, all defaults are used (everything enabled, no cooldown, no templates, empty backend config).
+When the config file does not exist, all defaults are used (everything enabled, no templates, empty backend config).
 
 ### Config File Schema
 
 ```json
 {
   "enabled": true,
-  "cooldown": {
-    "duration": "PT30S",
-    "edge": "leading"
-  },
   "events": {
     "session.idle": { "enabled": true },
     "session.error": { "enabled": true },
@@ -99,10 +94,9 @@ When the config file does not exist, all defaults are used (everything enabled, 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `enabled` | `boolean` | `true` | Global kill switch for all notifications |
-| `cooldown` | `object \| null` | `null` | Rate limiting configuration |
-| `cooldown.duration` | `string` | (required if cooldown set) | ISO 8601 duration string (e.g., `PT30S`, `PT5M`) |
-| `cooldown.edge` | `"leading" \| "trailing"` | `"leading"` | Throttle (first event fires) or debounce (fires after quiet period) |
-| `events.<type>.enabled` | `boolean` | `true` | Per-event enable/disable toggle |
+| `events` | `object` | (all enabled) | Per-event enable/disable toggles |
+| `events.<type>.enabled` | `boolean` | `true` | Whether this event type triggers notifications |
+| `templates` | `object \| null` | `null` | Per-event shell command templates |
 | `templates.<type>.titleCmd` | `string \| null` | `null` | Shell command to generate notification title |
 | `templates.<type>.messageCmd` | `string \| null` | `null` | Shell command to generate notification message |
 | `backend` | `object` | `{}` | Backend-specific configuration for this plugin |
@@ -165,14 +159,6 @@ function getBackendConfig(
 ): Record<string, unknown>;
 ```
 
-### `parseISO8601Duration(duration)`
-
-Parses an ISO 8601 duration string and returns the value in milliseconds.
-
-```typescript
-function parseISO8601Duration(duration: string): number;
-```
-
 ### Types
 
 ```typescript
@@ -202,14 +188,12 @@ interface NotificationBackend {
   send(context: NotificationContext): Promise<void>;
 }
 
-// Rate limiter types
-interface RateLimiterOptions {
-  duration: string;
-  edge: "leading" | "trailing";
-}
-
-interface RateLimiter {
-  shouldAllow(eventType: string): boolean;
+// Full configuration schema
+interface NotificationSDKConfig {
+  enabled: boolean;
+  events: Record<NotificationEvent, { enabled: boolean }>;
+  templates: Record<string, { titleCmd: string | null; messageCmd: string | null }> | null;
+  backend: Record<string, unknown>;
 }
 ```
 
