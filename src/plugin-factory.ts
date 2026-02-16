@@ -5,13 +5,14 @@ import { isRecord } from "./types.js";
 import type { NotificationBackend, NotificationEvent, EventMetadata } from "./types.js";
 import { loadConfig } from "./config.js";
 import type { NotificationSDKConfig } from "./config.js";
-import { classifySession } from "./session.js";
 import {
+  isSubagentSession,
   extractSessionIdleMetadata,
   extractSessionErrorMetadata,
   extractPermissionMetadata,
   buildTemplateVariables,
 } from "./events.js";
+import type { SessionClient } from "./events.js";
 import { getDefaultTitle, getDefaultMessage } from "./defaults.js";
 import { resolveField } from "./templates.js";
 import { createRateLimiter } from "./rate-limiter.js";
@@ -67,13 +68,18 @@ export interface PluginFactoryOptions {
    * {@link getBackendConfig}.
    */
   backendConfigKey?: string;
+  /**
+   * Override the config instead of loading from file. Used for testing
+   * without `vi.mock()`.
+   */
+  config?: NotificationSDKConfig;
 }
 
 /**
  * Create a fully functional OpenCode notification plugin from a backend implementation.
  *
  * This is the main entry point for backend plugin authors. It wires together
- * config loading, event classification, session filtering, rate limiting,
+ * config loading, event classification, subagent suppression, rate limiting,
  * shell command template resolution, and default notification content — then
  * calls `backend.send()` for each notification that passes all filters.
  *
@@ -90,13 +96,21 @@ export function createNotificationPlugin(
   options?: PluginFactoryOptions,
 ): Plugin {
   return async (input) => {
-    const config = loadConfig();
+    const config = options?.config ?? loadConfig();
     // backendConfigKey is available for future use by backends
     void options?.backendConfigKey;
     const projectName = basename(input.directory);
     const rateLimiter = config.cooldown
       ? createRateLimiter(config.cooldown)
       : null;
+
+    // Extract the client's session API. We use our own SessionClient interface
+    // to keep the mock surface small in tests.
+    const client: SessionClient = {
+      session: {
+        get: (opts) => input.client.session.get(opts),
+      },
+    };
 
     return {
       async event({ event }) {
@@ -110,7 +124,7 @@ export function createNotificationPlugin(
         const eventTypeStr: string = event.type;
 
         if (eventTypeStr === "permission.asked") {
-          const notificationEvent = "permission.requested";
+          const notificationEvent = "permission.asked" satisfies NotificationEvent;
 
           if (!config.events[notificationEvent].enabled) {
             return;
@@ -162,17 +176,15 @@ export function createNotificationPlugin(
         if (event.type === "session.idle") {
           const sessionID = event.properties.sessionID;
 
-          const classifiedEvent = await classifySession(
-            input.client,
-            sessionID,
-            config.subagentNotifications,
-          );
-
-          if (classifiedEvent === null) {
+          // Subagent suppression: check if session has a parentID
+          const isSubagent = await isSubagentSession(client, sessionID);
+          if (isSubagent) {
             return;
           }
 
-          if (!config.events[classifiedEvent].enabled) {
+          const notificationEvent = "session.idle" satisfies NotificationEvent;
+
+          if (!config.events[notificationEvent].enabled) {
             return;
           }
 
@@ -181,17 +193,23 @@ export function createNotificationPlugin(
             projectName,
           );
 
-          if (classifiedEvent === "subagent.complete") {
-            metadata.isSubagent = true;
-          }
-
           await resolveAndSend(
-            backend, input.$, config, classifiedEvent, metadata, rateLimiter,
+            backend, input.$, config, notificationEvent, metadata, rateLimiter,
           );
         }
 
         if (event.type === "session.error") {
-          const notificationEvent = "session.error";
+          const sessionID = event.properties.sessionID ?? "";
+
+          // Subagent suppression: check if session has a parentID
+          if (sessionID !== "") {
+            const isSubagent = await isSubagentSession(client, sessionID);
+            if (isSubagent) {
+              return;
+            }
+          }
+
+          const notificationEvent = "session.error" satisfies NotificationEvent;
 
           if (!config.events[notificationEvent].enabled) {
             return;
@@ -206,31 +224,6 @@ export function createNotificationPlugin(
             backend, input.$, config, notificationEvent, metadata, rateLimiter,
           );
         }
-      },
-
-      async "tool.execute.before"(toolInput) {
-        if (!config.enabled) {
-          return;
-        }
-
-        if (toolInput.tool !== "question") {
-          return;
-        }
-
-        const notificationEvent = "question.asked";
-
-        if (!config.events[notificationEvent].enabled) {
-          return;
-        }
-
-        const metadata = extractSessionIdleMetadata(
-          { sessionID: toolInput.sessionID },
-          projectName,
-        );
-
-        await resolveAndSend(
-          backend, input.$, config, notificationEvent, metadata, rateLimiter,
-        );
       },
     };
   };

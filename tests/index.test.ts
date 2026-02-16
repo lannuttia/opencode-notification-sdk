@@ -18,13 +18,11 @@ describe("public API exports", () => {
     expect(typeof sdk.parseISO8601Duration).toBe("function");
   });
 
-  it("should export NOTIFICATION_EVENTS array", () => {
+  it("should export NOTIFICATION_EVENTS array with correct event types", () => {
     expect(sdk.NOTIFICATION_EVENTS).toEqual([
-      "session.complete",
-      "subagent.complete",
+      "session.idle",
       "session.error",
-      "permission.requested",
-      "question.asked",
+      "permission.asked",
     ]);
   });
 });

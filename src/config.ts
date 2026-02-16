@@ -36,8 +36,6 @@ export interface TemplateConfig {
 export interface NotificationSDKConfig {
   /** Global kill switch for all notifications. Defaults to `true`. */
   enabled: boolean;
-  /** How to handle sub-agent `session.idle` events. Defaults to `"separate"`. */
-  subagentNotifications: "always" | "never" | "separate";
   /** Rate limiting configuration, or `null` to disable rate limiting. Defaults to `null`. */
   cooldown: CooldownConfig | null;
   /** Per-event enable/disable toggles. All events are enabled by default. */
@@ -58,14 +56,11 @@ const CONFIG_PATH = join(
 function createDefaultConfig(): NotificationSDKConfig {
   return {
     enabled: true,
-    subagentNotifications: "separate",
     cooldown: null,
     events: {
-      "session.complete": { enabled: true },
-      "subagent.complete": { enabled: true },
+      "session.idle": { enabled: true },
       "session.error": { enabled: true },
-      "permission.requested": { enabled: true },
-      "question.asked": { enabled: true },
+      "permission.asked": { enabled: true },
     },
     templates: null,
     backends: {},
@@ -76,13 +71,6 @@ const NOTIFICATION_EVENT_SET: Set<string> = new Set(NOTIFICATION_EVENTS);
 
 function isNotificationEvent(key: string): key is NotificationEvent {
   return NOTIFICATION_EVENT_SET.has(key);
-}
-
-const VALID_SUBAGENT_MODES: Set<string> = new Set(["always", "never", "separate"]);
-type SubagentMode = "always" | "never" | "separate";
-
-function isValidSubagentMode(value: string): value is SubagentMode {
-  return VALID_SUBAGENT_MODES.has(value);
 }
 
 const VALID_EDGES: Set<string> = new Set(["leading", "trailing"]);
@@ -96,7 +84,7 @@ function isValidEdge(value: string): value is CooldownEdge {
  * Parse a JSON config string into a validated {@link NotificationSDKConfig}.
  *
  * Applies defaults for any missing fields and validates enum values
- * (`subagentNotifications`, `cooldown.edge`).
+ * (`cooldown.edge`).
  *
  * @param content - The raw JSON string to parse.
  * @returns The parsed and validated configuration object with defaults applied.
@@ -119,16 +107,6 @@ export function parseConfigFile(content: string): NotificationSDKConfig {
 
   const enabled =
     typeof parsed.enabled === "boolean" ? parsed.enabled : defaults.enabled;
-
-  let subagentNotifications: SubagentMode = defaults.subagentNotifications;
-  if (typeof parsed.subagentNotifications === "string") {
-    if (!isValidSubagentMode(parsed.subagentNotifications)) {
-      throw new Error(
-        `Invalid notification config: subagentNotifications must be one of ${[...VALID_SUBAGENT_MODES].join(", ")}, got "${parsed.subagentNotifications}"`,
-      );
-    }
-    subagentNotifications = parsed.subagentNotifications;
-  }
 
   let cooldown: CooldownConfig | null = defaults.cooldown;
   if (parsed.cooldown === null) {
@@ -196,7 +174,6 @@ export function parseConfigFile(content: string): NotificationSDKConfig {
 
   return {
     enabled,
-    subagentNotifications,
     cooldown,
     events,
     templates,

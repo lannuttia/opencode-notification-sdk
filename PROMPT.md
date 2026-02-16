@@ -4,7 +4,7 @@ You are building a TypeScript SDK that provides a standard notification decision
 
 ## Goal
 
-Build a TypeScript library (`opencode-notification-sdk`) that handles all notification decision logic -- event classification, session filtering, rate limiting, and shell command templates -- so that notification backend plugins (ntfy.sh, desktop notifications, Slack, etc.) only need to implement a simple `send()` method.
+Build a TypeScript library (`opencode-notification-sdk`) that handles all notification decision logic -- event filtering, rate limiting, and shell command templates -- so that notification backend plugins (ntfy.sh, desktop notifications, Slack, etc.) only need to implement a simple `send()` method.
 
 ## Instructions
 
@@ -12,7 +12,9 @@ Build a TypeScript library (`opencode-notification-sdk`) that handles all notifi
 2. If all items in PLAN.md are complete and match this prompt's specifications, output exactly `<promise>Done</promise>` and stop. Do not make any changes.
 3. Pick the SINGLE highest priority incomplete item from PLAN.md and implement it.
 4. Ensure tests pass after your changes.
-5. Update PLAN.md with your progress and commit all changes with `git add -A && git commit -m "..."`.
+5. Update PLAN.md with your progress.
+6. If your changes affect user-facing behavior, configuration, or project structure, update `README.md` to reflect the current state of the project. The README must accurately document how to install, configure, and use the SDK based on the actual implementation, not legacy or outdated approaches.
+7. Commit all changes with `git add -A && git commit -m "..."`.
 
 If there is a discrepancy between PLAN.md and this prompt, always update PLAN.md to match this prompt.
 
@@ -21,7 +23,8 @@ If there is a discrepancy between PLAN.md and this prompt, always update PLAN.md
 - **No type casting.** Never use `as`, `as any`, `as unknown`, or similar type assertions. If the types don't align, fix the type definitions or use type guards, generics, or proper type narrowing instead. This is enforced by ESLint via the `@typescript-eslint/consistent-type-assertions` rule with `assertionStyle: "never"`.
 - **Prefer constants.** Use `const` variables instead of `let` wherever the value is not reassigned. For object literals, arrays, and other compound values that should be deeply immutable, use `as const` assertions (const assertions) to narrow types to their literal values. This improves type safety, communicates intent, and prevents accidental mutation.
 - **Linting is required.** All source and test code must pass `npm run lint` before committing. The linter uses ESLint with typescript-eslint and is configured in `eslint.config.js`.
-- **Docstrings on all public API surface.** Every exported function, class, interface, type alias, and constant must have a JSDoc docstring. Docstrings should describe purpose, parameters (via `@param`), return values (via `@returns`), and any notable behavior (e.g., error handling, side effects). This applies to all items exported from `src/index.ts` and any types or functions that are part of the public API consumed by backend plugin authors.
+- **Prefer immutability and pure functions.** Favor immutable data and pure functions over mutable state and side effects. Avoid mutating function arguments or shared state. When a function needs to produce a modified value, return a new value rather than mutating the input. Side effects (I/O, network calls, filesystem access) should be pushed to the edges of the system so that core logic remains pure and easy to test.
+- **No implementation-coupled test doubles.** Tests must not use mocks, spies, stubs, monkey-patching, or module patching that couple the test to the internal implementation of the unit under test. This includes -- but is not limited to -- `vi.mock()`, `vi.spyOn()`, `vi.fn()`, `vi.stubGlobal()`, and manual mock files. Design production code so that dependencies can be supplied directly (e.g., via function parameters or options objects) rather than requiring interception at the module or global level. Network-level interception libraries like MSW are permitted because they operate at the HTTP boundary without coupling tests to implementation details.
 
 ## Specifications
 
@@ -29,8 +32,8 @@ If there is a discrepancy between PLAN.md and this prompt, always update PLAN.md
 
 The SDK is a standalone npm package that backend notification plugins depend on. It handles:
 
-1. **Event classification** -- mapping raw OpenCode plugin events to canonical notification event types
-2. **Session filtering** -- distinguishing root sessions from sub-agent sessions
+1. **Event filtering** -- determining which OpenCode plugin events should trigger notifications
+2. **Subagent suppression** -- silently suppressing notifications from sub-agent (child) sessions
 3. **Rate limiting** -- configurable per-event cooldown with leading/trailing edge
 4. **Shell command templates** -- customizable notification fields via shell commands with `{var}` substitution
 5. **Default notification content** -- sensible defaults for titles, messages, and metadata per event type
@@ -38,40 +41,31 @@ The SDK is a standalone npm package that backend notification plugins depend on.
 
 Backend plugins implement a single `NotificationBackend` interface and call `createNotificationPlugin()` to get a fully functional plugin.
 
-### Canonical Event Types
+### Supported Events
 
-The SDK defines the following canonical notification event types, derived from the superset of events across existing notification plugins:
+The SDK sends notifications on the following OpenCode events via the `event` hook:
 
-| Canonical Event | OpenCode Trigger | Description |
+| Event | OpenCode Trigger | Description |
 |---|---|---|
-| `session.complete` | `session.idle` event where the session has no `parentID` | Main session finished generating |
-| `subagent.complete` | `session.idle` event where the session has a `parentID` | A sub-agent finished its task |
+| `session.idle` | `session.idle` event | Agent finished generating and is waiting for input |
 | `session.error` | `session.error` event | Session encountered an error |
-| `permission.requested` | `permission.asked` event (via the `event` hook, not `permission.ask` hook) | Agent needs user permission |
-| `question.asked` | `tool.execute.before` hook where `input.tool === "question"` | Agent is asking the user a question via the question tool |
+| `permission.asked` | `permission.asked` event | Agent needs user permission |
 
 These are defined as a TypeScript string literal union type `NotificationEvent`.
 
-### Event Classification (`src/events.ts`)
+### Subagent Suppression
 
-The SDK must classify raw OpenCode events into canonical `NotificationEvent` values. This module:
+`session.idle` and `session.error` events from subagent (child) sessions must be silently suppressed. When a subagent completes or errors, control returns to the parent agent, so there is nothing for the user to act on. The SDK must use the `client` from the plugin input to call `client.session.get()` with the session ID from the event's properties to determine whether the session has a `parentID`. If it does, the event is from a subagent and no notification is sent. If the session lookup fails (e.g., network error, missing session), the SDK must fall through and send the notification anyway to avoid silently dropping notifications due to transient failures.
 
-1. Receives raw OpenCode events from the `event` hook and `tool.execute.before` hook
-2. For `session.idle` events: uses the OpenCode `client.session.get()` API to check whether the session has a `parentID`, then emits either `session.complete` or `subagent.complete`
-3. For `session.error` events: emits `session.error`
-4. For `permission.asked` events (note: this event type string is not yet in the `@opencode-ai/plugin` SDK's `Event` union, so it must be handled via string comparison on `event.type`): emits `permission.requested`
-5. For `tool.execute.before` where `input.tool === "question"`: emits `question.asked`
-6. Extracts event metadata (error messages, permission types, patterns, session IDs, timestamps)
+### Event Filtering (`src/events.ts`)
 
-### Session Filtering (`src/session.ts`)
+The SDK must classify raw OpenCode events and determine whether a notification should be sent. This module:
 
-The SDK must support configurable sub-agent notification behavior via a `subagentNotifications` config option:
-
-- `"always"` -- notify for all `session.idle` events regardless of parent/child status; all are classified as `session.complete`
-- `"never"` -- only notify for root sessions (no `parentID`); silently ignore sub-agent idle events entirely
-- `"separate"` (default) -- fire `session.complete` for root sessions and `subagent.complete` for child sessions; each can be independently enabled/disabled in the events config
-
-Session parent/child detection is done by calling `client.session.get({ path: { id: sessionID } })` and checking for `response.data.parentID`. The SDK must handle API failures gracefully (treat as root session on error).
+1. Receives raw OpenCode events from the `event` hook
+2. For `session.idle` events: uses the OpenCode `client.session.get()` API to check whether the session has a `parentID`. If it does, the event is from a subagent and is silently suppressed. If the lookup fails, the notification is sent anyway.
+3. For `session.error` events: uses the same subagent check as `session.idle`. Subagent errors are silently suppressed.
+4. For `permission.asked` events (note: this event type string is not yet in the `@opencode-ai/plugin` SDK's `Event` union, so it must be handled via string comparison on `event.type`): always sends a notification.
+5. Extracts event metadata (error messages, permission types, patterns, session IDs, timestamps)
 
 ### Rate Limiting (`src/rate-limiter.ts`)
 
@@ -79,7 +73,7 @@ The SDK must provide configurable per-event-type rate limiting:
 
 - Cooldown duration specified as an ISO 8601 duration string (e.g., `PT30S`, `PT5M`). Parsed using a small third-party ISO 8601 duration library (e.g., `iso8601-duration`).
 - Cooldown edge: `"leading"` (throttle -- first event fires immediately, subsequent suppressed) or `"trailing"` (debounce -- fires after quiet period). Uses a small third-party throttle/debounce library (e.g., `throttle-debounce`).
-- Rate limiting is tracked per canonical event type (e.g., `session.complete` and `session.error` have independent cooldown timers).
+- Rate limiting is tracked per event type (e.g., `session.idle` and `session.error` have independent cooldown timers).
 - When cooldown is not configured, no rate limiting is applied.
 - A cooldown of `PT0S` (zero seconds) disables rate limiting.
 
@@ -103,20 +97,17 @@ Configuration is loaded from a JSON config file at `~/.config/opencode/notificat
 ```json
 {
   "enabled": true,
-  "subagentNotifications": "separate",
   "cooldown": {
     "duration": "PT30S",
     "edge": "leading"
   },
   "events": {
-    "session.complete": { "enabled": true },
-    "subagent.complete": { "enabled": false },
+    "session.idle": { "enabled": true },
     "session.error": { "enabled": true },
-    "permission.requested": { "enabled": true },
-    "question.asked": { "enabled": true }
+    "permission.asked": { "enabled": true }
   },
   "templates": {
-    "session.complete": {
+    "session.idle": {
       "titleCmd": null,
       "messageCmd": null
     }
@@ -136,7 +127,6 @@ Configuration is loaded from a JSON config file at `~/.config/opencode/notificat
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `enabled` | `boolean` | `true` | Global kill switch for all notifications |
-| `subagentNotifications` | `"always" \| "never" \| "separate"` | `"separate"` | How to handle sub-agent session.idle events |
 | `cooldown` | `object \| null` | `null` | Rate limiting configuration |
 | `cooldown.duration` | `string` | (required if cooldown set) | ISO 8601 duration string |
 | `cooldown.edge` | `"leading" \| "trailing"` | `"leading"` | Which edge of the cooldown window triggers |
@@ -151,15 +141,13 @@ When the config file does not exist, all defaults are used (everything enabled, 
 
 ### Default Notification Content (`src/defaults.ts`)
 
-The SDK provides default titles and messages for each canonical event type. These are used when no shell command template is configured for the field.
+The SDK provides default titles and messages for each event type. These are used when no shell command template is configured for the field.
 
 | Event | Default Title | Default Message |
 |---|---|---|
-| `session.complete` | `"Agent Idle"` | `"The agent has finished and is waiting for input."` |
-| `subagent.complete` | `"Sub-agent Complete"` | `"A sub-agent has completed its task."` |
+| `session.idle` | `"Agent Idle"` | `"The agent has finished and is waiting for input."` |
 | `session.error` | `"Agent Error"` | `"An error occurred. Check the session for details."` |
-| `permission.requested` | `"Permission Requested"` | `"The agent needs permission to continue."` |
-| `question.asked` | `"Question Asked"` | `"The agent has a question and is waiting for your answer."` |
+| `permission.asked` | `"Permission Asked"` | `"The agent needs permission to continue."` |
 
 ### Shell Command Templates (`src/templates.ts`)
 
@@ -176,17 +164,17 @@ Notification fields (title, message) can be customized per event type via shell 
 
 | Variable | Available In | Description |
 |---|---|---|
-| `{event}` | All events | The canonical event type string (e.g., `session.complete`) |
+| `{event}` | All events | The event type string (e.g., `session.idle`) |
 | `{time}` | All events | ISO 8601 timestamp |
 | `{project}` | All events | Project directory name (basename) |
 | `{error}` | `session.error` only | The error message (empty string for other events) |
-| `{permission_type}` | `permission.requested` only | The permission type (empty string for other events) |
-| `{permission_patterns}` | `permission.requested` only | Comma-separated list of patterns (empty string for other events) |
+| `{permission_type}` | `permission.asked` only | The permission type (empty string for other events) |
+| `{permission_patterns}` | `permission.asked` only | Comma-separated list of patterns (empty string for other events) |
 | `{session_id}` | All events | The session ID (empty string if unavailable) |
 
 ### Notification Context (`src/types.ts`)
 
-When a notification passes all filters (enabled, event config, rate limiter), the SDK produces a `NotificationContext` object and passes it to the backend:
+When a notification passes all filters (enabled, event config, rate limiter, subagent suppression), the SDK produces a `NotificationContext` object and passes it to the backend:
 
 ```typescript
 interface NotificationContext {
@@ -198,7 +186,6 @@ interface NotificationContext {
 
 interface EventMetadata {
   sessionId: string;
-  isSubagent: boolean;
   projectName: string;
   timestamp: string;
   error?: string;
@@ -237,11 +224,11 @@ This function:
 1. Returns an OpenCode `Plugin` function (matching the `@opencode-ai/plugin` `Plugin` type)
 2. When invoked by OpenCode, loads the config file, initializes the rate limiter, and returns `Hooks`
 3. The returned `Hooks` include:
-   - `event` handler -- classifies `session.idle`, `session.error`, and `permission.asked` events
-   - `tool.execute.before` handler -- detects question tool invocations
-4. For each classified event:
+   - `event` handler -- handles `session.idle`, `session.error`, and `permission.asked` events
+4. For each event:
    - Checks `config.enabled` (global kill switch)
    - Checks `config.events[eventType].enabled` (per-event toggle)
+   - Performs subagent suppression for `session.idle` and `session.error` events
    - Checks rate limiter (`rateLimiter.shouldAllow(eventType)`)
    - Resolves title and message via shell command templates or defaults
    - Calls `backend.send(context)`
@@ -255,7 +242,7 @@ The SDK exports the following from `src/index.ts`:
 - `createNotificationPlugin` -- the plugin factory function
 - `NotificationBackend` -- the backend interface type
 - `NotificationContext` -- the context object type
-- `NotificationEvent` -- the canonical event type union
+- `NotificationEvent` -- the event type union
 - `EventMetadata` -- the event metadata type
 - `NotificationSDKConfig` -- the full config type
 - `loadConfig` -- the config loading function (for backends that need the config)
@@ -282,8 +269,7 @@ opencode-notification-sdk/
   src/
     index.ts              # Public API exports
     types.ts              # NotificationEvent, NotificationContext, NotificationBackend, EventMetadata
-    events.ts             # Event classification (raw OpenCode events -> canonical events)
-    session.ts            # Session tracking and parent/child detection
+    events.ts             # Event filtering and subagent suppression
     rate-limiter.ts       # ISO 8601 duration parsing, per-event cooldown
     config.ts             # Config file loading, validation, backend config extraction
     defaults.ts           # Default notification content per event type
@@ -291,14 +277,12 @@ opencode-notification-sdk/
     plugin-factory.ts     # createNotificationPlugin() factory
   tests/
     types.test.ts         # Type conformance tests
-    events.test.ts        # Event classification tests
-    session.test.ts       # Session filtering tests
+    events.test.ts        # Event filtering and subagent suppression tests
     rate-limiter.test.ts  # Rate limiter and duration parsing tests
     config.test.ts        # Config loading and validation tests
     defaults.test.ts      # Default content tests
     templates.test.ts     # Template execution tests
     plugin-factory.test.ts # Integration tests for the plugin factory
-    mock-shell.ts         # Shared mock BunShell factory
   eslint.config.js
   package.json
   tsconfig.json

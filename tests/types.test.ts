@@ -8,38 +8,51 @@ import type {
 } from "../src/types.js";
 
 describe("NotificationEvent", () => {
-  it("should define all 5 canonical event types", () => {
+  it("should define all 3 canonical event types", () => {
     expect(NOTIFICATION_EVENTS).toEqual([
-      "session.complete",
-      "subagent.complete",
+      "session.idle",
       "session.error",
-      "permission.requested",
-      "question.asked",
+      "permission.asked",
     ]);
   });
 
-  it("should have exactly 5 event types", () => {
-    expect(NOTIFICATION_EVENTS).toHaveLength(5);
+  it("should have exactly 3 event types", () => {
+    expect(NOTIFICATION_EVENTS).toHaveLength(3);
   });
 });
 
 describe("NotificationContext", () => {
   it("should be constructable with valid fields", () => {
     const context: NotificationContext = {
-      event: "session.complete",
+      event: "session.idle",
       title: "Agent Idle",
       message: "The agent has finished.",
       metadata: {
         sessionId: "abc-123",
-        isSubagent: false,
         projectName: "my-project",
         timestamp: "2026-02-14T00:00:00Z",
       },
     };
-    expect(context.event).toBe("session.complete");
+    expect(context.event).toBe("session.idle");
     expect(context.title).toBe("Agent Idle");
     expect(context.message).toBe("The agent has finished.");
     expect(context.metadata.sessionId).toBe("abc-123");
+  });
+
+  it("should not have isSubagent on metadata", () => {
+    const context: NotificationContext = {
+      event: "session.error",
+      title: "Error",
+      message: "Something went wrong.",
+      metadata: {
+        sessionId: "xyz-789",
+        projectName: "test-project",
+        timestamp: "2026-02-14T12:00:00Z",
+        error: "Connection timeout",
+      },
+    };
+    // Verify isSubagent does not exist as a property
+    expect("isSubagent" in context.metadata).toBe(false);
   });
 });
 
@@ -57,7 +70,6 @@ describe("NotificationBackend", () => {
       message: "Something went wrong.",
       metadata: {
         sessionId: "xyz-789",
-        isSubagent: false,
         projectName: "test-project",
         timestamp: "2026-02-14T12:00:00Z",
         error: "Connection timeout",

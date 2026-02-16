@@ -4,7 +4,59 @@ import {
   extractSessionErrorMetadata,
   extractPermissionMetadata,
   buildTemplateVariables,
+  isSubagentSession,
 } from "../src/events.js";
+import type { SessionClient } from "../src/events.js";
+
+describe("isSubagentSession", () => {
+  it("should return true when session has a parentID", async () => {
+    const client: SessionClient = {
+      session: {
+        get: async () => ({
+          data: { parentID: "parent-123" },
+        }),
+      },
+    };
+    const result = await isSubagentSession(client, "child-456");
+    expect(result).toBe(true);
+  });
+
+  it("should return false when session has no parentID", async () => {
+    const client: SessionClient = {
+      session: {
+        get: async () => ({
+          data: { parentID: undefined },
+        }),
+      },
+    };
+    const result = await isSubagentSession(client, "root-session");
+    expect(result).toBe(false);
+  });
+
+  it("should return false when the API call throws an error (fall through to send)", async () => {
+    const client: SessionClient = {
+      session: {
+        get: async () => {
+          throw new Error("Connection refused");
+        },
+      },
+    };
+    const result = await isSubagentSession(client, "any-session");
+    expect(result).toBe(false);
+  });
+
+  it("should return false when session data is undefined", async () => {
+    const client: SessionClient = {
+      session: {
+        get: async () => ({
+          data: undefined,
+        }),
+      },
+    };
+    const result = await isSubagentSession(client, "any-session");
+    expect(result).toBe(false);
+  });
+});
 
 describe("extractSessionIdleMetadata", () => {
   it("should extract sessionId and projectName from session.idle event properties", () => {
@@ -15,11 +67,12 @@ describe("extractSessionIdleMetadata", () => {
 
     expect(metadata.sessionId).toBe("sess-123");
     expect(metadata.projectName).toBe("my-project");
-    expect(metadata.isSubagent).toBe(false);
     expect(metadata.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(metadata.error).toBeUndefined();
     expect(metadata.permissionType).toBeUndefined();
     expect(metadata.permissionPatterns).toBeUndefined();
+    // Should NOT have isSubagent
+    expect("isSubagent" in metadata).toBe(false);
   });
 });
 
@@ -35,11 +88,12 @@ describe("extractSessionErrorMetadata", () => {
 
     expect(metadata.sessionId).toBe("sess-456");
     expect(metadata.projectName).toBe("my-project");
-    expect(metadata.isSubagent).toBe(false);
     expect(metadata.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(metadata.error).toBe("something broke");
     expect(metadata.permissionType).toBeUndefined();
     expect(metadata.permissionPatterns).toBeUndefined();
+    // Should NOT have isSubagent
+    expect("isSubagent" in metadata).toBe(false);
   });
 
   it("should handle missing sessionID in session.error event", () => {
@@ -78,11 +132,12 @@ describe("extractPermissionMetadata", () => {
 
     expect(metadata.sessionId).toBe("sess-perm-1");
     expect(metadata.projectName).toBe("my-project");
-    expect(metadata.isSubagent).toBe(false);
     expect(metadata.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(metadata.permissionType).toBe("file.write");
     expect(metadata.permissionPatterns).toEqual(["/tmp/*.txt", "/home/*.log"]);
     expect(metadata.error).toBeUndefined();
+    // Should NOT have isSubagent
+    expect("isSubagent" in metadata).toBe(false);
   });
 
   it("should handle a single string pattern", () => {
@@ -114,15 +169,14 @@ describe("extractPermissionMetadata", () => {
 });
 
 describe("buildTemplateVariables", () => {
-  it("should build variables for a session.complete event", () => {
-    const vars = buildTemplateVariables("session.complete", {
+  it("should build variables for a session.idle event", () => {
+    const vars = buildTemplateVariables("session.idle", {
       sessionId: "sess-tv1",
-      isSubagent: false,
       projectName: "my-project",
       timestamp: "2026-02-14T12:00:00.000Z",
     });
 
-    expect(vars.event).toBe("session.complete");
+    expect(vars.event).toBe("session.idle");
     expect(vars.time).toBe("2026-02-14T12:00:00.000Z");
     expect(vars.project).toBe("my-project");
     expect(vars.session_id).toBe("sess-tv1");
@@ -134,7 +188,6 @@ describe("buildTemplateVariables", () => {
   it("should build variables for a session.error event with error metadata", () => {
     const vars = buildTemplateVariables("session.error", {
       sessionId: "sess-tv2",
-      isSubagent: false,
       projectName: "my-project",
       timestamp: "2026-02-14T12:00:00.000Z",
       error: "something broke",
@@ -143,10 +196,9 @@ describe("buildTemplateVariables", () => {
     expect(vars.error).toBe("something broke");
   });
 
-  it("should build variables for a permission.requested event with patterns", () => {
-    const vars = buildTemplateVariables("permission.requested", {
+  it("should build variables for a permission.asked event with patterns", () => {
+    const vars = buildTemplateVariables("permission.asked", {
       sessionId: "sess-tv3",
-      isSubagent: false,
       projectName: "my-project",
       timestamp: "2026-02-14T12:00:00.000Z",
       permissionType: "file.write",

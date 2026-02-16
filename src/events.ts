@@ -1,12 +1,52 @@
 import type { EventMetadata, NotificationEvent } from "./types.js";
 
+/**
+ * Minimal interface for the OpenCode client's session API.
+ * Only the methods the SDK needs are specified, keeping the mock surface small.
+ */
+export interface SessionClient {
+  session: {
+    get(options: {
+      path: { id: string };
+    }): Promise<{
+      data:
+        | {
+            parentID?: string;
+          }
+        | undefined;
+    }>;
+  };
+}
+
+/**
+ * Checks whether a session is a subagent (child) session by looking
+ * for a `parentID` on the session object via `client.session.get()`.
+ *
+ * If the session lookup fails (e.g., network error, missing session),
+ * returns `false` so the notification is sent anyway (fail-open behavior).
+ *
+ * @param client - The OpenCode client with a session API.
+ * @param sessionId - The session ID to check.
+ * @returns `true` if the session has a parent (is a subagent), `false` otherwise.
+ */
+export async function isSubagentSession(
+  client: SessionClient,
+  sessionId: string,
+): Promise<boolean> {
+  try {
+    const response = await client.session.get({ path: { id: sessionId } });
+    return Boolean(response.data?.parentID);
+  } catch {
+    return false;
+  }
+}
+
 function createBaseMetadata(
   sessionID: string,
   projectName: string,
 ): EventMetadata {
   return {
     sessionId: sessionID,
-    isSubagent: false,
     projectName,
     timestamp: new Date().toISOString(),
   };

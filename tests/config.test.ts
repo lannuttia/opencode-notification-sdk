@@ -4,14 +4,11 @@ import type { NotificationSDKConfig } from "../src/config.js";
 
 const DEFAULT_CONFIG: NotificationSDKConfig = {
   enabled: true,
-  subagentNotifications: "separate",
   cooldown: null,
   events: {
-    "session.complete": { enabled: true },
-    "subagent.complete": { enabled: true },
+    "session.idle": { enabled: true },
     "session.error": { enabled: true },
-    "permission.requested": { enabled: true },
-    "question.asked": { enabled: true },
+    "permission.asked": { enabled: true },
   },
   templates: null,
   backends: {},
@@ -24,13 +21,13 @@ describe("loadConfig", () => {
     // Either way, the result should have the correct shape.
     const config = loadConfig();
     expect(config).toHaveProperty("enabled");
-    expect(config).toHaveProperty("subagentNotifications");
     expect(config).toHaveProperty("cooldown");
     expect(config).toHaveProperty("events");
     expect(config).toHaveProperty("templates");
     expect(config).toHaveProperty("backends");
     expect(typeof config.enabled).toBe("boolean");
-    expect(["always", "never", "separate"]).toContain(config.subagentNotifications);
+    // Should NOT have subagentNotifications
+    expect(config).not.toHaveProperty("subagentNotifications");
   });
 });
 
@@ -38,20 +35,17 @@ describe("parseConfigFile", () => {
   it("should parse a valid full config file", () => {
     const fileConfig = {
       enabled: false,
-      subagentNotifications: "never",
       cooldown: {
         duration: "PT5M",
         edge: "trailing",
       },
       events: {
-        "session.complete": { enabled: true },
-        "subagent.complete": { enabled: false },
+        "session.idle": { enabled: true },
         "session.error": { enabled: true },
-        "permission.requested": { enabled: false },
-        "question.asked": { enabled: true },
+        "permission.asked": { enabled: false },
       },
       templates: {
-        "session.complete": {
+        "session.idle": {
           titleCmd: "echo 'Done'",
           messageCmd: null,
         },
@@ -76,29 +70,26 @@ describe("parseConfigFile", () => {
     const partialConfig = { enabled: false };
     const config = parseConfigFile(JSON.stringify(partialConfig));
     expect(config.enabled).toBe(false);
-    expect(config.subagentNotifications).toBe("separate");
     expect(config.cooldown).toBeNull();
-    expect(config.events["session.complete"].enabled).toBe(true);
-    expect(config.events["subagent.complete"].enabled).toBe(true);
+    expect(config.events["session.idle"].enabled).toBe(true);
     expect(config.events["session.error"].enabled).toBe(true);
-    expect(config.events["permission.requested"].enabled).toBe(true);
-    expect(config.events["question.asked"].enabled).toBe(true);
+    expect(config.events["permission.asked"].enabled).toBe(true);
     expect(config.templates).toBeNull();
     expect(config.backends).toEqual({});
+    // Should NOT have subagentNotifications
+    expect(config).not.toHaveProperty("subagentNotifications");
   });
 
   it("should merge partial events config with defaults, preserving unspecified events", () => {
     const partialConfig = {
       events: {
-        "session.complete": { enabled: false },
+        "session.idle": { enabled: false },
       },
     };
     const config = parseConfigFile(JSON.stringify(partialConfig));
-    expect(config.events["session.complete"].enabled).toBe(false);
-    expect(config.events["subagent.complete"].enabled).toBe(true);
+    expect(config.events["session.idle"].enabled).toBe(false);
     expect(config.events["session.error"].enabled).toBe(true);
-    expect(config.events["permission.requested"].enabled).toBe(true);
-    expect(config.events["question.asked"].enabled).toBe(true);
+    expect(config.events["permission.asked"].enabled).toBe(true);
   });
 
   it("should use default cooldown edge when only duration is specified", () => {
@@ -110,12 +101,6 @@ describe("parseConfigFile", () => {
       duration: "PT30S",
       edge: "leading",
     });
-  });
-
-  it("should throw when subagentNotifications has an invalid value", () => {
-    const invalidConfig = { subagentNotifications: "invalid_value" };
-    expect(() => parseConfigFile(JSON.stringify(invalidConfig))).toThrow(/Invalid notification config/);
-    expect(() => parseConfigFile(JSON.stringify(invalidConfig))).toThrow(/subagentNotifications/);
   });
 
   it("should throw when cooldown.edge has an invalid value", () => {

@@ -5,22 +5,18 @@
  * and for runtime validation of event type values.
  */
 export const NOTIFICATION_EVENTS = [
-  "session.complete",
-  "subagent.complete",
+  "session.idle",
   "session.error",
-  "permission.requested",
-  "question.asked",
+  "permission.asked",
 ] as const;
 
 /**
  * A canonical notification event type.
  *
  * The SDK classifies raw OpenCode events into one of these canonical types:
- * - `"session.complete"` -- main session finished generating
- * - `"subagent.complete"` -- a sub-agent finished its task
+ * - `"session.idle"` -- agent finished generating and is waiting for input
  * - `"session.error"` -- session encountered an error
- * - `"permission.requested"` -- agent needs user permission
- * - `"question.asked"` -- agent is asking the user a question
+ * - `"permission.asked"` -- agent needs user permission
  */
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -33,17 +29,15 @@ export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 export interface EventMetadata {
   /** The OpenCode session ID. */
   sessionId: string;
-  /** Whether this event originated from a sub-agent (child) session. */
-  isSubagent: boolean;
   /** The directory basename of the project. */
   projectName: string;
   /** ISO 8601 timestamp of when the event was processed. */
   timestamp: string;
   /** The error message, present only for `session.error` events. */
   error?: string;
-  /** The permission type, present only for `permission.requested` events. */
+  /** The permission type, present only for `permission.asked` events. */
   permissionType?: string;
-  /** The permission patterns, present only for `permission.requested` events. */
+  /** The permission patterns, present only for `permission.asked` events. */
   permissionPatterns?: string[];
 }
 

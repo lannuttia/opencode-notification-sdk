@@ -14,8 +14,8 @@
 
 ## Phase 2: Core Types (`src/types.ts`)
 
-- [x] Define `NotificationEvent` string literal union type (`session.complete`, `subagent.complete`, `session.error`, `permission.requested`, `question.asked`)
-- [x] Define `EventMetadata` interface (sessionId, isSubagent, projectName, timestamp, error?, permissionType?, permissionPatterns?)
+- [x] Define `NotificationEvent` string literal union type (`session.idle`, `session.error`, `permission.asked`)
+- [x] Define `EventMetadata` interface (sessionId, projectName, timestamp, error?, permissionType?, permissionPatterns?)
 - [x] Define `NotificationContext` interface (event, title, message, metadata)
 - [x] Define `NotificationBackend` interface with `send(context: NotificationContext): Promise<void>`
 - [x] Write type conformance tests in `tests/types.test.ts`
@@ -41,13 +41,13 @@
 
 ## Phase 5: Configuration (`src/config.ts`)
 
-- [x] Define `NotificationSDKConfig` interface matching the config file schema
+- [x] Define `NotificationSDKConfig` interface matching the config file schema (no `subagentNotifications` field)
 - [x] Implement `loadConfig(): NotificationSDKConfig` that reads `~/.config/opencode/notification.json`
 - [x] Handle missing config file gracefully (return all defaults)
 - [x] Handle malformed JSON gracefully (throw descriptive error)
-- [x] Validate config values (subagentNotifications enum, cooldown edge enum, event types)
-- [x] Implement `getBackendConfig(config: NotificationSDKConfig, backendName: string): Record<string, unknown> | undefined` (no generic `T` parameter due to no-cast rule)
-- [x] Write tests in `tests/config.test.ts` (mock filesystem reads)
+- [x] Validate config values (cooldown edge enum, event types)
+- [x] Implement `getBackendConfig(config: NotificationSDKConfig, backendName: string): Record<string, unknown> | undefined`
+- [x] Write tests in `tests/config.test.ts`
 - [x] Ensure tests pass and package builds cleanly
 
 ## Phase 6: Shell Command Templates (`src/templates.ts`)
@@ -61,20 +61,11 @@
 - [x] Write tests in `tests/templates.test.ts`
 - [x] Ensure tests pass and package builds cleanly
 
-## Phase 7: Session Filtering (`src/session.ts`)
-
-- [x] Implement `isChildSession(client, sessionId): Promise<boolean>` that calls `client.session.get()`
-- [x] Handle API failures gracefully (treat as root session)
-- [x] Implement `classifySession(client, sessionId, subagentMode): Promise<NotificationEvent | null>`
-  - `"always"` -> always returns `session.complete`
-  - `"never"` -> returns `session.complete` for root, `null` for child
-  - `"separate"` -> returns `session.complete` for root, `subagent.complete` for child
-- [x] Write tests in `tests/session.test.ts`
-- [x] Ensure tests pass and package builds cleanly
-
-## Phase 8: Event Classification (`src/events.ts`)
+## Phase 7: Event Filtering (`src/events.ts`)
 
 - [x] Implement event metadata extraction for each event type
+- [x] Implement subagent suppression: use `client.session.get()` to check `parentID` for `session.idle` and `session.error` events
+- [x] Handle session lookup failures gracefully (fall through and send notification)
 - [x] Extract error message from `session.error` event properties
 - [x] Extract permission type and patterns from `permission.asked` event properties
 - [x] Extract session ID from event properties
@@ -82,61 +73,40 @@
 - [x] Write tests in `tests/events.test.ts`
 - [x] Ensure tests pass and package builds cleanly
 
-## Phase 9: Plugin Factory (`src/plugin-factory.ts`)
+## Phase 8: Plugin Factory (`src/plugin-factory.ts`)
 
 - [x] Implement `createNotificationPlugin(backend, options?): Plugin`
 - [x] Load config file on plugin initialization
 - [x] Initialize rate limiter from config
-- [x] Return `Hooks` with `event` handler and `tool.execute.before` handler
-- [x] In `event` handler: classify events, check enabled/rate-limit, resolve templates, call `backend.send()`
-- [x] In `tool.execute.before` handler: detect question tool, apply same pipeline
-- [x] Catch and ignore errors from `backend.send()`
-- [x] Pass backend config via `getBackendConfig()` if `backendConfigKey` is provided
+- [x] Return `Hooks` with `event` handler only (no `tool.execute.before`)
+- [x] In `event` handler: handle `session.idle`, `session.error`, and `permission.asked` events
+- [x] For `session.idle` and `session.error`: perform subagent suppression via `client.session.get()`
+- [x] For `permission.asked`: always send notification (no subagent check)
+- [x] Check `config.enabled`, `config.events[eventType].enabled`, rate limiter
+- [x] Resolve title and message via shell command templates or defaults
+- [x] Call `backend.send()`, catch and ignore errors
+- [x] Plugin factory tests must NOT use `vi.mock()` -- supply dependencies directly
 - [x] Write integration tests in `tests/plugin-factory.test.ts`
 - [x] Ensure tests pass and package builds cleanly
 
-## Phase 10: Public API (`src/index.ts`)
+## Phase 9: Public API (`src/index.ts`)
 
 - [x] Export all public types and functions from `src/index.ts`
 - [x] Write export verification tests
 - [x] Ensure tests pass, lint is clean, and package builds cleanly
 
-## Phase 11: CI Pipeline
+## Phase 10: CI Pipeline
 
 - [x] Create `.github/workflows/ci.yml` with matrix strategy for Node.js 20, 22, and 24
 - [x] Run lint, build, and test steps in CI
 - [x] Add publish step (runs only on latest Node.js version, on tag push)
 
-## Phase 12: Fix Lint Errors
+## Phase 11: Documentation
 
-- [x] Fix type assertion (`as`) violations in `tests/mock-shell.ts` to comply with `@typescript-eslint/consistent-type-assertions` rule
-- [x] Ensure `npm run lint` passes cleanly
+- [x] Create `docs/creating-a-plugin.md` matching prompt spec
+- [x] Create `README.md` documenting install, configure, and use
 
-## Phase 13: Plugin Factory Signature Fix
+## Phase 12: JSDoc Docstrings on Public API
 
-- [x] Update `createNotificationPlugin` signature to match spec: `(backend, options?: { backendConfigKey?: string }): Plugin`
-- [x] Load config from file instead of accepting `configOverride` parameter
-- [x] Make backend config available when `backendConfigKey` is provided
-- [x] Update tests to use the new signature (mock `loadConfig()` via `vi.mock()`)
-- [x] Ensure tests pass, lint is clean, and package builds cleanly
-
-## Phase 14: Documentation
-
-- [x] Create `docs/creating-a-plugin.md` with:
-  - Overview of SDK architecture
-  - Prerequisites
-  - Implementing `NotificationBackend`
-  - Using `createNotificationPlugin()`
-  - Configuration guide
-  - Complete example
-  - Testing tips
-
-## Phase 15: JSDoc Docstrings on Public API
-
-- [x] Add JSDoc docstrings to all exported items in `src/types.ts` (`NOTIFICATION_EVENTS`, `NotificationEvent`, `EventMetadata`, `NotificationContext`, `NotificationBackend`, `isRecord`)
-- [x] Add JSDoc docstrings to all exported items in `src/config.ts` (`NotificationSDKConfig`, `loadConfig`, `getBackendConfig`, `parseConfigFile`, `EventConfig`, `CooldownConfig`, `TemplateConfig`)
-- [x] Add JSDoc docstrings to all exported items in `src/rate-limiter.ts` (`parseISO8601Duration`, `RateLimiterOptions`, `RateLimiter`, `createRateLimiter`)
-- [x] Add JSDoc docstrings to `createNotificationPlugin` and `PluginFactoryOptions` in `src/plugin-factory.ts`
-- [x] Add JSDoc docstrings to exported functions in `src/defaults.ts` (`getDefaultTitle`, `getDefaultMessage`)
-- [x] Add JSDoc docstrings to exported functions/types in `src/events.ts`, `src/session.ts`, `src/templates.ts`
+- [x] Add JSDoc docstrings to all exported items
 - [x] Ensure tests pass, lint is clean, and package builds cleanly

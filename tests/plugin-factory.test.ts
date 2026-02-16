@@ -10,30 +10,16 @@ import type { NotificationContext, NotificationBackend } from "../src/types.js";
 import type { NotificationSDKConfig } from "../src/config.js";
 import { createNotificationPlugin } from "../src/plugin-factory.js";
 import { createMockShell } from "./mock-shell.js";
-
-// Mock loadConfig so plugin-factory reads config from our test fixture
-// instead of the real filesystem.
-vi.mock("../src/config.js", async (importOriginal) => {
-  const original = await importOriginal<typeof import("../src/config.js")>();
-  return {
-    ...original,
-    loadConfig: vi.fn(() => createDefaultTestConfig()),
-  };
-});
-
-import { loadConfig } from "../src/config.js";
+import type { SessionClient } from "../src/events.js";
 
 function createDefaultTestConfig(): NotificationSDKConfig {
   return {
     enabled: true,
-    subagentNotifications: "separate",
     cooldown: null,
     events: {
-      "session.complete": { enabled: true },
-      "subagent.complete": { enabled: true },
+      "session.idle": { enabled: true },
       "session.error": { enabled: true },
-      "permission.requested": { enabled: true },
-      "question.asked": { enabled: true },
+      "permission.asked": { enabled: true },
     },
     templates: null,
     backends: {},
@@ -42,40 +28,37 @@ function createDefaultTestConfig(): NotificationSDKConfig {
 
 /**
  * Creates a minimal mock PluginInput with a mock client whose session.get()
- * returns a root session (no parentID).
+ * returns a session with the given parentID (or undefined if root).
+ *
+ * The plugin factory is designed to accept dependencies directly so we
+ * don't need to use vi.mock(). We pass config directly to the factory.
  */
 function createMockPluginInput(overrides: {
   parentID?: string;
   directory?: string;
+  sessionGetError?: boolean;
 } = {}) {
-  const mockClient = {
+  const mockClient: SessionClient = {
     session: {
-      get: async () => ({
-        data: {
-          id: "test-session",
-          parentID: overrides.parentID,
-        },
-      }),
+      get: overrides.sessionGetError
+        ? async () => { throw new Error("Connection refused"); }
+        : async () => ({
+            data: {
+              parentID: overrides.parentID,
+            },
+          }),
     },
   };
 
   return {
     client: mockClient,
-    project: {
-      id: "proj-1",
-      worktree: "/test/project",
-      time: { created: 0 },
-    },
     directory: overrides.directory ?? "/test/project",
-    worktree: "/test/project",
-    serverUrl: new URL("http://localhost:3000"),
     $: createMockShell(),
   };
 }
 
 /**
  * Creates a NotificationBackend that captures all sent contexts into an array.
- * Returns both the backend and the captured contexts array.
  */
 function createCapturingBackend(): {
   backend: NotificationBackend;
@@ -91,9 +74,7 @@ function createCapturingBackend(): {
 }
 
 /**
- * Creates a NotificationBackend whose send() does nothing.
- * Used when we only care about whether send was NOT called.
- * Returns the backend and a way to check if send was called.
+ * Creates a NotificationBackend that tracks whether send was called.
  */
 function createTrackingBackend(): {
   backend: NotificationBackend;
@@ -108,23 +89,12 @@ function createTrackingBackend(): {
   return { backend, wasCalled: () => called };
 }
 
-/**
- * Helper: configure the mocked loadConfig to return a custom config.
- */
-function mockLoadConfig(config: NotificationSDKConfig): void {
-  vi.mocked(loadConfig).mockReturnValue(config);
-}
-
 describe("createNotificationPlugin", () => {
-  beforeEach(() => {
-    // Reset loadConfig mock to return default config before each test
-    vi.mocked(loadConfig).mockReturnValue(createDefaultTestConfig());
-  });
-
-  it("should load config from file and call backend.send() when session.idle fires for a root session", async () => {
+  it("should call backend.send() when session.idle fires for a root session", async () => {
     const { backend, sentContexts } = createCapturingBackend();
+    const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, { config });
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -140,24 +110,24 @@ describe("createNotificationPlugin", () => {
     expect(sentContexts).toHaveLength(1);
 
     const context = sentContexts[0];
-    expect(context.event).toBe("session.complete");
+    expect(context.event).toBe("session.idle");
     expect(context.title).toBe("Agent Idle");
     expect(context.message).toBe(
       "The agent has finished and is waiting for input.",
     );
     expect(context.metadata.sessionId).toBe("sess-123");
-    expect(context.metadata.isSubagent).toBe(false);
     expect(context.metadata.projectName).toBe("project");
+    // Should NOT have isSubagent
+    expect("isSubagent" in context.metadata).toBe(false);
   });
 
   it("should not call backend.send() when config.enabled is false", async () => {
-    const disabledConfig = createDefaultTestConfig();
-    disabledConfig.enabled = false;
-    mockLoadConfig(disabledConfig);
+    const config = createDefaultTestConfig();
+    config.enabled = false;
 
     const { backend, wasCalled } = createTrackingBackend();
 
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, { config });
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -172,13 +142,12 @@ describe("createNotificationPlugin", () => {
   });
 
   it("should not call backend.send() when the specific event type is disabled", async () => {
-    const configWithDisabled = createDefaultTestConfig();
-    configWithDisabled.events["session.complete"] = { enabled: false };
-    mockLoadConfig(configWithDisabled);
+    const config = createDefaultTestConfig();
+    config.events["session.idle"] = { enabled: false };
 
     const { backend, wasCalled } = createTrackingBackend();
 
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, { config });
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -192,14 +161,11 @@ describe("createNotificationPlugin", () => {
     expect(wasCalled()).toBe(false);
   });
 
-  it("should not call backend.send() for child sessions when subagentNotifications is 'never'", async () => {
-    const neverConfig = createDefaultTestConfig();
-    neverConfig.subagentNotifications = "never";
-    mockLoadConfig(neverConfig);
-
+  it("should suppress session.idle for subagent (child) sessions", async () => {
     const { backend, wasCalled } = createTrackingBackend();
+    const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, { config });
     const input = createMockPluginInput({ parentID: "parent-session" });
     const hooks = await plugin(input);
 
@@ -213,30 +179,81 @@ describe("createNotificationPlugin", () => {
     expect(wasCalled()).toBe(false);
   });
 
-  it("should send subagent.complete for child sessions when subagentNotifications is 'separate'", async () => {
-    const { backend, sentContexts } = createCapturingBackend();
+  it("should suppress session.error for subagent (child) sessions", async () => {
+    const { backend, wasCalled } = createTrackingBackend();
+    const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, { config });
     const input = createMockPluginInput({ parentID: "parent-session" });
     const hooks = await plugin(input);
 
     await hooks.event!({
       event: {
-        type: "session.idle",
-        properties: { sessionID: "child-session" },
+        type: "session.error",
+        properties: {
+          sessionID: "child-session",
+          error: {
+            name: "UnknownError",
+            data: { message: "child error" },
+          },
+        },
       },
     });
 
-    expect(sentContexts).toHaveLength(1);
-    expect(sentContexts[0].event).toBe("subagent.complete");
-    expect(sentContexts[0].title).toBe("Sub-agent Complete");
-    expect(sentContexts[0].metadata.isSubagent).toBe(true);
+    expect(wasCalled()).toBe(false);
   });
 
-  it("should send session.error notification with error metadata when session.error fires", async () => {
+  it("should fall through and send when session lookup fails for session.idle", async () => {
     const { backend, sentContexts } = createCapturingBackend();
+    const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, { config });
+    const input = createMockPluginInput({ sessionGetError: true });
+    const hooks = await plugin(input);
+
+    await hooks.event!({
+      event: {
+        type: "session.idle",
+        properties: { sessionID: "sess-unknown" },
+      },
+    });
+
+    // Should send because the session lookup failed (fall through)
+    expect(sentContexts).toHaveLength(1);
+    expect(sentContexts[0].event).toBe("session.idle");
+  });
+
+  it("should fall through and send when session lookup fails for session.error", async () => {
+    const { backend, sentContexts } = createCapturingBackend();
+    const config = createDefaultTestConfig();
+
+    const plugin = createNotificationPlugin(backend, { config });
+    const input = createMockPluginInput({ sessionGetError: true });
+    const hooks = await plugin(input);
+
+    await hooks.event!({
+      event: {
+        type: "session.error",
+        properties: {
+          sessionID: "sess-unknown",
+          error: {
+            name: "UnknownError",
+            data: { message: "error" },
+          },
+        },
+      },
+    });
+
+    // Should send because the session lookup failed (fall through)
+    expect(sentContexts).toHaveLength(1);
+    expect(sentContexts[0].event).toBe("session.error");
+  });
+
+  it("should send session.error notification with error metadata", async () => {
+    const { backend, sentContexts } = createCapturingBackend();
+    const config = createDefaultTestConfig();
+
+    const plugin = createNotificationPlugin(backend, { config });
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -263,16 +280,16 @@ describe("createNotificationPlugin", () => {
     expect(sentContexts[0].metadata.sessionId).toBe("sess-err-1");
   });
 
-  it("should send permission.requested notification when permission.asked event fires", async () => {
+  it("should send permission.asked notification when permission.asked event fires", async () => {
     const { backend, sentContexts } = createCapturingBackend();
+    const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, { config });
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
-    // permission.asked is not in the Event union type, so we need to
-    // construct the event hook input manually to simulate the runtime event.
-    // At runtime, OpenCode sends events not yet in the SDK's type union.
+    // permission.asked is not in the Event union type, so we construct
+    // the event hook input manually to simulate the runtime event.
     const eventHook = hooks.event!;
     const permissionEvent = {
       event: {
@@ -288,8 +305,8 @@ describe("createNotificationPlugin", () => {
     await eventHook(permissionEvent);
 
     expect(sentContexts).toHaveLength(1);
-    expect(sentContexts[0].event).toBe("permission.requested");
-    expect(sentContexts[0].title).toBe("Permission Requested");
+    expect(sentContexts[0].event).toBe("permission.asked");
+    expect(sentContexts[0].title).toBe("Permission Asked");
     expect(sentContexts[0].message).toBe(
       "The agent needs permission to continue.",
     );
@@ -300,42 +317,31 @@ describe("createNotificationPlugin", () => {
     expect(sentContexts[0].metadata.sessionId).toBe("sess-perm-1");
   });
 
-  it("should send question.asked notification when tool.execute.before fires with question tool", async () => {
+  it("should NOT send notification for permission.asked from subagent (no subagent check for permission)", async () => {
+    // permission.asked always sends, even if the session has a parentID
     const { backend, sentContexts } = createCapturingBackend();
+    const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend);
-    const input = createMockPluginInput();
+    const plugin = createNotificationPlugin(backend, { config });
+    const input = createMockPluginInput({ parentID: "parent-session" });
     const hooks = await plugin(input);
 
-    expect(hooks["tool.execute.before"]).toBeDefined();
-
-    await hooks["tool.execute.before"]!(
-      { tool: "question", sessionID: "sess-q1", callID: "call-1" },
-      { args: {} },
-    );
+    const eventHook = hooks.event!;
+    const permissionEvent = {
+      event: {
+        type: "permission.asked",
+        properties: {
+          sessionID: "sess-perm-child",
+          type: "file.write",
+          pattern: ["/tmp/*.txt"],
+        },
+      },
+    };
+    // @ts-expect-error permission.asked is not yet in the @opencode-ai/plugin Event union
+    await eventHook(permissionEvent);
 
     expect(sentContexts).toHaveLength(1);
-    expect(sentContexts[0].event).toBe("question.asked");
-    expect(sentContexts[0].title).toBe("Question Asked");
-    expect(sentContexts[0].message).toBe(
-      "The agent has a question and is waiting for your answer.",
-    );
-    expect(sentContexts[0].metadata.sessionId).toBe("sess-q1");
-  });
-
-  it("should not send notification when tool.execute.before fires with a non-question tool", async () => {
-    const { backend, wasCalled } = createTrackingBackend();
-
-    const plugin = createNotificationPlugin(backend);
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    await hooks["tool.execute.before"]!(
-      { tool: "read", sessionID: "sess-r1", callID: "call-2" },
-      { args: {} },
-    );
-
-    expect(wasCalled()).toBe(false);
+    expect(sentContexts[0].event).toBe("permission.asked");
   });
 
   it("should silently ignore errors thrown by backend.send()", async () => {
@@ -344,8 +350,9 @@ describe("createNotificationPlugin", () => {
         throw new Error("Network failure");
       },
     };
+    const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, { config });
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -361,23 +368,22 @@ describe("createNotificationPlugin", () => {
   });
 
   it("should use shell command template for title when configured", async () => {
-    const configWithTemplate = createDefaultTestConfig();
-    configWithTemplate.templates = {
-      "session.complete": {
+    const config = createDefaultTestConfig();
+    config.templates = {
+      "session.idle": {
         titleCmd: "echo Custom {event} Title",
         messageCmd: null,
       },
     };
-    mockLoadConfig(configWithTemplate);
 
     const { backend, sentContexts } = createCapturingBackend();
 
     const $ = createMockShell({
       exitCode: 0,
-      stdout: "Custom session.complete Title\n",
+      stdout: "Custom session.idle Title\n",
     });
 
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, { config });
     const input = createMockPluginInput();
     input.$ = $;
     const hooks = await plugin(input);
@@ -390,7 +396,7 @@ describe("createNotificationPlugin", () => {
     });
 
     expect(sentContexts).toHaveLength(1);
-    expect(sentContexts[0].title).toBe("Custom session.complete Title");
+    expect(sentContexts[0].title).toBe("Custom session.idle Title");
     // Message should still be the default since messageCmd is null
     expect(sentContexts[0].message).toBe(
       "The agent has finished and is waiting for input.",
@@ -399,8 +405,9 @@ describe("createNotificationPlugin", () => {
 
   it("should silently ignore unrecognized event types", async () => {
     const { backend, wasCalled } = createTrackingBackend();
+    const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend);
+    const plugin = createNotificationPlugin(backend, { config });
     const input = createMockPluginInput();
     const hooks = await plugin(input);
 
@@ -426,19 +433,16 @@ describe("createNotificationPlugin", () => {
   });
 
   it("should accept options with backendConfigKey as second parameter", async () => {
-    const configWithBackend = createDefaultTestConfig();
-    configWithBackend.backends = {
+    const config = createDefaultTestConfig();
+    config.backends = {
       mybackend: { topic: "test-topic", server: "https://example.com" },
     };
-    mockLoadConfig(configWithBackend);
 
     const { backend, sentContexts } = createCapturingBackend();
 
-    // The spec says createNotificationPlugin takes
-    //   (backend, options?: { backendConfigKey?: string })
-    // and not (backend, config?: NotificationSDKConfig)
     const plugin = createNotificationPlugin(backend, {
       backendConfigKey: "mybackend",
+      config,
     });
     const input = createMockPluginInput();
     const hooks = await plugin(input);
@@ -451,7 +455,18 @@ describe("createNotificationPlugin", () => {
     });
 
     expect(sentContexts).toHaveLength(1);
-    expect(sentContexts[0].event).toBe("session.complete");
+    expect(sentContexts[0].event).toBe("session.idle");
+  });
+
+  it("should NOT have tool.execute.before handler", async () => {
+    const { backend } = createCapturingBackend();
+    const config = createDefaultTestConfig();
+
+    const plugin = createNotificationPlugin(backend, { config });
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    expect(hooks["tool.execute.before"]).toBeUndefined();
   });
 
   describe("rate limiting", () => {
@@ -464,13 +479,12 @@ describe("createNotificationPlugin", () => {
     });
 
     it("should suppress repeated events within cooldown period with leading edge", async () => {
-      const configWithCooldown = createDefaultTestConfig();
-      configWithCooldown.cooldown = { duration: "PT30S", edge: "leading" };
-      mockLoadConfig(configWithCooldown);
+      const config = createDefaultTestConfig();
+      config.cooldown = { duration: "PT30S", edge: "leading" };
 
       const { backend, sentContexts } = createCapturingBackend();
 
-      const plugin = createNotificationPlugin(backend);
+      const plugin = createNotificationPlugin(backend, { config });
       const input = createMockPluginInput();
       const hooks = await plugin(input);
 

@@ -6,11 +6,11 @@ This guide explains how to create a custom notification backend plugin using the
 
 The `opencode-notification-sdk` handles all notification decision logic:
 
-- **Event classification** -- mapping raw OpenCode events to canonical notification types like `session.complete`, `session.error`, `permission.requested`, etc.
-- **Session filtering** -- distinguishing root sessions from sub-agent sessions and filtering accordingly.
-- **Rate limiting** -- configurable per-event cooldown to prevent notification spam.
-- **Shell command templates** -- user-customizable notification titles and messages via shell commands.
-- **Default content** -- sensible default titles and messages for every event type.
+- **Event filtering** -- determining which OpenCode plugin events should trigger notifications
+- **Subagent suppression** -- silently suppressing notifications from sub-agent (child) sessions for `session.idle` and `session.error` events
+- **Rate limiting** -- configurable per-event cooldown to prevent notification spam
+- **Shell command templates** -- user-customizable notification titles and messages via shell commands
+- **Default content** -- sensible default titles and messages for every event type
 
 Your backend plugin only needs to implement a single method: `send()`. The SDK calls your `send()` method after all filtering and content resolution is complete. You receive a fully prepared `NotificationContext` with the event type, title, message, and metadata -- all you need to do is deliver it.
 
@@ -56,7 +56,7 @@ The `context` parameter passed to `send()` contains everything you need:
 
 ```typescript
 interface NotificationContext {
-  event: NotificationEvent;   // e.g. "session.complete", "session.error"
+  event: NotificationEvent;   // "session.idle", "session.error", or "permission.asked"
   title: string;              // Resolved title (from template or default)
   message: string;            // Resolved message (from template or default)
   metadata: EventMetadata;    // Additional event metadata
@@ -64,12 +64,11 @@ interface NotificationContext {
 
 interface EventMetadata {
   sessionId: string;           // The OpenCode session ID
-  isSubagent: boolean;         // Whether this is a sub-agent session
   projectName: string;         // Directory basename of the project
   timestamp: string;           // ISO 8601 timestamp
   error?: string;              // Error message (session.error events only)
-  permissionType?: string;     // Permission type (permission.requested only)
-  permissionPatterns?: string[]; // Permission patterns (permission.requested only)
+  permissionType?: string;     // Permission type (permission.asked only)
+  permissionPatterns?: string[]; // Permission patterns (permission.asked only)
 }
 ```
 
@@ -163,20 +162,17 @@ End users configure all notification plugins through a single shared config file
 ```json
 {
   "enabled": true,
-  "subagentNotifications": "separate",
   "cooldown": {
     "duration": "PT30S",
     "edge": "leading"
   },
   "events": {
-    "session.complete": { "enabled": true },
-    "subagent.complete": { "enabled": false },
+    "session.idle": { "enabled": true },
     "session.error": { "enabled": true },
-    "permission.requested": { "enabled": true },
-    "question.asked": { "enabled": true }
+    "permission.asked": { "enabled": true }
   },
   "templates": {
-    "session.complete": {
+    "session.idle": {
       "titleCmd": "echo 'Custom Title'",
       "messageCmd": null
     }
@@ -195,7 +191,6 @@ End users configure all notification plugins through a single shared config file
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `enabled` | `boolean` | `true` | Global kill switch for all notifications |
-| `subagentNotifications` | `"always" \| "never" \| "separate"` | `"separate"` | How sub-agent events are handled |
 | `cooldown` | `object \| null` | `null` | Rate limiting config (ISO 8601 duration + edge) |
 | `events.<type>.enabled` | `boolean` | `true` | Per-event enable/disable toggle |
 | `templates.<type>.titleCmd` | `string \| null` | `null` | Shell command to generate the notification title |
@@ -260,7 +255,6 @@ const webhookBackend: NotificationBackend = {
         project: context.metadata.projectName,
         session: context.metadata.sessionId,
         timestamp: context.metadata.timestamp,
-        isSubagent: context.metadata.isSubagent,
         error: context.metadata.error,
       }),
     });
@@ -286,9 +280,9 @@ export default plugin;
 {
   "enabled": true,
   "events": {
-    "session.complete": { "enabled": true },
+    "session.idle": { "enabled": true },
     "session.error": { "enabled": true },
-    "permission.requested": { "enabled": true }
+    "permission.asked": { "enabled": true }
   },
   "backends": {
     "webhook": {
@@ -322,12 +316,11 @@ describe("webhook backend", () => {
 
     // Create a test context
     const context: NotificationContext = {
-      event: "session.complete",
+      event: "session.idle",
       title: "Agent Idle",
       message: "The agent has finished and is waiting for input.",
       metadata: {
         sessionId: "test-session-123",
-        isSubagent: false,
         projectName: "my-project",
         timestamp: new Date().toISOString(),
       },
@@ -349,7 +342,6 @@ describe("webhook backend", () => {
       message: "An error occurred. Check the session for details.",
       metadata: {
         sessionId: "err-session-456",
-        isSubagent: false,
         projectName: "my-project",
         timestamp: new Date().toISOString(),
         error: "Connection timeout",
@@ -369,6 +361,6 @@ describe("webhook backend", () => {
 
 - **Test `send()` directly** -- you don't need the full plugin lifecycle to test your delivery logic.
 - **Mock external services** -- use `vi.fn()` or similar to mock HTTP calls, API clients, or desktop notification APIs.
-- **Test all event types** -- construct contexts for each `NotificationEvent` type (`session.complete`, `subagent.complete`, `session.error`, `permission.requested`, `question.asked`) to verify your backend handles them all correctly.
+- **Test all event types** -- construct contexts for each `NotificationEvent` type (`session.idle`, `session.error`, `permission.asked`) to verify your backend handles them all correctly.
 - **Test error scenarios** -- verify your backend handles network failures, auth errors, and invalid responses gracefully.
 - **Use the SDK's types** -- import `NotificationContext` and `NotificationEvent` from the SDK to ensure type safety in your tests.
