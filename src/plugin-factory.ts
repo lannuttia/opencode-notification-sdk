@@ -88,7 +88,7 @@ export interface PluginFactoryOptions {
  *
  * @param backend - The notification backend that implements the delivery transport.
  * @param options - Optional configuration including a `backendConfigKey` for
- *   extracting backend-specific config from the shared config file.
+ *   determining the per-backend config file path.
  * @returns An OpenCode {@link Plugin} function ready to be exported as a plugin.
  */
 export function createNotificationPlugin(
@@ -96,9 +96,7 @@ export function createNotificationPlugin(
   options?: PluginFactoryOptions,
 ): Plugin {
   return async (input) => {
-    const config = options?.config ?? loadConfig();
-    // backendConfigKey is available for future use by backends
-    void options?.backendConfigKey;
+    const config = options?.config ?? loadConfig(options?.backendConfigKey);
     const projectName = basename(input.directory);
     const rateLimiter = config.cooldown
       ? createRateLimiter(config.cooldown)
@@ -174,17 +172,17 @@ export function createNotificationPlugin(
         }
 
         if (event.type === "session.idle") {
+          const notificationEvent = "session.idle" satisfies NotificationEvent;
+
+          if (!config.events[notificationEvent].enabled) {
+            return;
+          }
+
           const sessionID = event.properties.sessionID;
 
           // Subagent suppression: check if session has a parentID
           const isSubagent = await isSubagentSession(client, sessionID);
           if (isSubagent) {
-            return;
-          }
-
-          const notificationEvent = "session.idle" satisfies NotificationEvent;
-
-          if (!config.events[notificationEvent].enabled) {
             return;
           }
 
@@ -199,6 +197,12 @@ export function createNotificationPlugin(
         }
 
         if (event.type === "session.error") {
+          const notificationEvent = "session.error" satisfies NotificationEvent;
+
+          if (!config.events[notificationEvent].enabled) {
+            return;
+          }
+
           const sessionID = event.properties.sessionID ?? "";
 
           // Subagent suppression: check if session has a parentID
@@ -207,12 +211,6 @@ export function createNotificationPlugin(
             if (isSubagent) {
               return;
             }
-          }
-
-          const notificationEvent = "session.error" satisfies NotificationEvent;
-
-          if (!config.events[notificationEvent].enabled) {
-            return;
           }
 
           const metadata = extractSessionErrorMetadata(

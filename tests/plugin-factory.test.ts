@@ -161,6 +161,43 @@ describe("createNotificationPlugin", () => {
     expect(wasCalled()).toBe(false);
   });
 
+  it("should not call session.get() when the event type is disabled (per-event check before subagent check)", async () => {
+    const config = createDefaultTestConfig();
+    config.events["session.idle"] = { enabled: false };
+
+    const { backend, wasCalled } = createTrackingBackend();
+
+    let sessionGetCalled = false;
+    const mockClient: SessionClient = {
+      session: {
+        get: async () => {
+          sessionGetCalled = true;
+          return { data: { parentID: undefined } };
+        },
+      },
+    };
+
+    const plugin = createNotificationPlugin(backend, { config });
+    const input = {
+      client: mockClient,
+      directory: "/test/project",
+      $: createMockShell(),
+    };
+    const hooks = await plugin(input);
+
+    await hooks.event!({
+      event: {
+        type: "session.idle",
+        properties: { sessionID: "sess-check-order" },
+      },
+    });
+
+    expect(wasCalled()).toBe(false);
+    // The per-event enabled check should happen BEFORE the subagent check
+    // so session.get() should not be called
+    expect(sessionGetCalled).toBe(false);
+  });
+
   it("should suppress session.idle for subagent (child) sessions", async () => {
     const { backend, wasCalled } = createTrackingBackend();
     const config = createDefaultTestConfig();
