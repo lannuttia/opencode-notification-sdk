@@ -7,6 +7,10 @@
   "files": [
     "dist"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lannuttia/opencode-notification-sdk"
+  },
   "engines": {
     "node": ">=20"
   },
