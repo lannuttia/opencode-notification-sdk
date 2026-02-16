@@ -63,9 +63,9 @@ async function resolveAndSend(
 /** Options for the {@link createNotificationPlugin} factory function. */
 export interface PluginFactoryOptions {
   /**
-   * The key under `config.backends` from which to extract backend-specific
-   * configuration. When provided, the backend can retrieve its config via
-   * {@link getBackendConfig}.
+   * Key used to determine the config file path. When provided, the config
+   * is loaded from `~/.config/opencode/notification-<backendConfigKey>.json`.
+   * When omitted, falls back to `~/.config/opencode/notification.json`.
    */
   backendConfigKey?: string;
   /**

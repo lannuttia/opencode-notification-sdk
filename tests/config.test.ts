@@ -11,12 +11,12 @@ const DEFAULT_CONFIG: NotificationSDKConfig = {
     "permission.asked": { enabled: true },
   },
   templates: null,
-  backends: {},
+  backend: {},
 };
 
 describe("loadConfig", () => {
   it("should return a valid config object (either defaults or from config file)", () => {
-    // loadConfig reads from ~/.config/opencode/notification.json
+    // loadConfig reads from ~/.config/opencode/notification.json (or notification-<key>.json)
     // If the file doesn't exist, it returns defaults; if it does, it parses it.
     // Either way, the result should have the correct shape.
     const config = loadConfig();
@@ -24,15 +24,16 @@ describe("loadConfig", () => {
     expect(config).toHaveProperty("cooldown");
     expect(config).toHaveProperty("events");
     expect(config).toHaveProperty("templates");
-    expect(config).toHaveProperty("backends");
+    expect(config).toHaveProperty("backend");
     expect(typeof config.enabled).toBe("boolean");
-    // Should NOT have subagentNotifications
+    // Should NOT have backends (plural) or subagentNotifications
+    expect(config).not.toHaveProperty("backends");
     expect(config).not.toHaveProperty("subagentNotifications");
   });
 });
 
 describe("parseConfigFile", () => {
-  it("should parse a valid full config file", () => {
+  it("should parse a valid full config file with singular backend key", () => {
     const fileConfig = {
       enabled: false,
       cooldown: {
@@ -50,11 +51,9 @@ describe("parseConfigFile", () => {
           messageCmd: null,
         },
       },
-      backends: {
-        ntfy: {
-          topic: "my-topic",
-          server: "https://ntfy.sh",
-        },
+      backend: {
+        topic: "my-topic",
+        server: "https://ntfy.sh",
       },
     };
 
@@ -75,8 +74,9 @@ describe("parseConfigFile", () => {
     expect(config.events["session.error"].enabled).toBe(true);
     expect(config.events["permission.asked"].enabled).toBe(true);
     expect(config.templates).toBeNull();
-    expect(config.backends).toEqual({});
-    // Should NOT have subagentNotifications
+    expect(config.backend).toEqual({});
+    // Should NOT have backends (plural) or subagentNotifications
+    expect(config).not.toHaveProperty("backends");
     expect(config).not.toHaveProperty("subagentNotifications");
   });
 
@@ -113,25 +113,23 @@ describe("parseConfigFile", () => {
 });
 
 describe("getBackendConfig", () => {
-  it("should return the backend-specific config section when it exists", () => {
+  it("should return the backend config object directly from config.backend", () => {
     const config: NotificationSDKConfig = {
       ...DEFAULT_CONFIG,
-      backends: {
-        ntfy: { topic: "my-topic", server: "https://ntfy.sh" },
-      },
+      backend: { topic: "my-topic", server: "https://ntfy.sh" },
     };
 
-    const ntfyConfig = getBackendConfig(config, "ntfy");
-    expect(ntfyConfig).toEqual({ topic: "my-topic", server: "https://ntfy.sh" });
+    const backendConfig = getBackendConfig(config);
+    expect(backendConfig).toEqual({ topic: "my-topic", server: "https://ntfy.sh" });
   });
 
-  it("should return undefined when the backend key does not exist", () => {
+  it("should return empty object when no backend config is set", () => {
     const config: NotificationSDKConfig = {
       ...DEFAULT_CONFIG,
-      backends: {},
+      backend: {},
     };
 
-    const result = getBackendConfig(config, "nonexistent");
-    expect(result).toBeUndefined();
+    const result = getBackendConfig(config);
+    expect(result).toEqual({});
   });
 });

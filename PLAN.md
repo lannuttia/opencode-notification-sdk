@@ -110,3 +110,20 @@
 
 - [x] Add JSDoc docstrings to all exported items
 - [x] Ensure tests pass, lint is clean, and package builds cleanly
+
+## Phase 13: Config Model Alignment (per-backend config files)
+
+Align the config model with the spec: each backend plugin gets its own config file
+(`~/.config/opencode/notification-<backendConfigKey>.json`) with a singular `backend`
+key instead of a shared config file with a `backends` map.
+
+- [ ] Change `NotificationSDKConfig.backends` to `backend: Record<string, unknown>` (singular)
+- [ ] Update `loadConfig()` to accept optional `backendConfigKey` parameter for config file path
+- [ ] Update `getBackendConfig<T>()` to be generic and read from `config.backend`
+- [ ] Update `parseConfigFile` to parse singular `backend` key
+- [ ] Update `createNotificationPlugin` to pass `backendConfigKey` to `loadConfig`
+- [ ] Fix check ordering: per-event enabled check before subagent suppression
+- [ ] Remove extra exports not in spec (`NOTIFICATION_EVENTS`, `parseConfigFile`)
+- [ ] Update all tests to match new config model
+- [ ] Update README.md and docs/creating-a-plugin.md for per-backend config files
+- [ ] Ensure tests pass, lint is clean, and package builds cleanly

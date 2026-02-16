@@ -29,9 +29,10 @@ export interface TemplateConfig {
 /**
  * Full configuration schema for the notification SDK.
  *
- * Loaded from `~/.config/opencode/notification.json`. When the config file
- * does not exist, all defaults are used (everything enabled, no cooldown,
- * no templates).
+ * Loaded from `~/.config/opencode/notification-<backendConfigKey>.json`
+ * (or `~/.config/opencode/notification.json` when no key is provided).
+ * When the config file does not exist, all defaults are used (everything
+ * enabled, no cooldown, no templates, empty backend config).
  */
 export interface NotificationSDKConfig {
   /** Global kill switch for all notifications. Defaults to `true`. */
@@ -42,8 +43,8 @@ export interface NotificationSDKConfig {
   events: Record<NotificationEvent, EventConfig>;
   /** Per-event shell command templates for customizing notification content, or `null` for defaults. */
   templates: Record<string, TemplateConfig> | null;
-  /** Backend-specific configuration sections keyed by backend name. */
-  backends: Record<string, Record<string, unknown>>;
+  /** Backend-specific configuration for this plugin. */
+  backend: Record<string, unknown>;
 }
 
 const CONFIG_PATH = join(
@@ -63,7 +64,7 @@ function createDefaultConfig(): NotificationSDKConfig {
       "permission.asked": { enabled: true },
     },
     templates: null,
-    backends: {},
+    backend: {},
   };
 }
 
@@ -162,14 +163,9 @@ export function parseConfigFile(content: string): NotificationSDKConfig {
     }
   }
 
-  let backends: Record<string, Record<string, unknown>> = defaults.backends;
-  if (isRecord(parsed.backends)) {
-    backends = {};
-    for (const [key, val] of Object.entries(parsed.backends)) {
-      if (isRecord(val)) {
-        backends[key] = val;
-      }
-    }
+  let backend: Record<string, unknown> = defaults.backend;
+  if (isRecord(parsed.backend)) {
+    backend = { ...parsed.backend };
   }
 
   return {
@@ -177,7 +173,7 @@ export function parseConfigFile(content: string): NotificationSDKConfig {
     cooldown,
     events,
     templates,
-    backends,
+    backend,
   };
 }
 
@@ -204,18 +200,16 @@ export function loadConfig(): NotificationSDKConfig {
 }
 
 /**
- * Extract a backend-specific configuration section from the full SDK config.
+ * Extract the backend-specific configuration from the full SDK config.
  *
  * The SDK does not interpret or validate the backend config — it is passed
  * through as-is for the backend plugin to consume.
  *
  * @param config - The full notification SDK configuration.
- * @param backendName - The key under `config.backends` to extract.
- * @returns The backend config object, or `undefined` if no config exists for the given name.
+ * @returns The backend config object.
  */
 export function getBackendConfig(
   config: NotificationSDKConfig,
-  backendName: string,
-): Record<string, unknown> | undefined {
-  return config.backends[backendName];
+): Record<string, unknown> {
+  return config.backend;
 }

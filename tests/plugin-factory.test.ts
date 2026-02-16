@@ -22,7 +22,7 @@ function createDefaultTestConfig(): NotificationSDKConfig {
       "permission.asked": { enabled: true },
     },
     templates: null,
-    backends: {},
+    backend: {},
   };
 }
 
@@ -434,9 +434,7 @@ describe("createNotificationPlugin", () => {
 
   it("should accept options with backendConfigKey as second parameter", async () => {
     const config = createDefaultTestConfig();
-    config.backends = {
-      mybackend: { topic: "test-topic", server: "https://example.com" },
-    };
+    config.backend = { topic: "test-topic", server: "https://example.com" };
 
     const { backend, sentContexts } = createCapturingBackend();
 
