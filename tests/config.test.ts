@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { loadConfig, getBackendConfig, parseConfigFile } from "../src/config.js";
+import { join } from "node:path";
+import { homedir } from "node:os";
+import { loadConfig, getBackendConfig, parseConfigFile, getConfigPath } from "../src/config.js";
 import type { NotificationSDKConfig } from "../src/config.js";
 
 const DEFAULT_CONFIG: NotificationSDKConfig = {
@@ -29,6 +31,34 @@ describe("loadConfig", () => {
     // Should NOT have backends (plural) or subagentNotifications
     expect(config).not.toHaveProperty("backends");
     expect(config).not.toHaveProperty("subagentNotifications");
+  });
+
+  it("should accept an optional backendConfigKey parameter and return valid config", () => {
+    // When backendConfigKey is provided, loadConfig reads from
+    // ~/.config/opencode/notification-<key>.json instead of notification.json.
+    // Since the file likely doesn't exist, we expect defaults.
+    const config = loadConfig("nonexistent-backend-key");
+    expect(config).toHaveProperty("enabled");
+    expect(config).toHaveProperty("backend");
+    expect(config.enabled).toBe(true);
+    expect(config.backend).toEqual({});
+  });
+});
+
+describe("getConfigPath", () => {
+  it("should return notification.json path when no backendConfigKey is provided", () => {
+    const expected = join(homedir(), ".config", "opencode", "notification.json");
+    expect(getConfigPath()).toBe(expected);
+  });
+
+  it("should return notification-<key>.json path when backendConfigKey is provided", () => {
+    const expected = join(homedir(), ".config", "opencode", "notification-ntfy.json");
+    expect(getConfigPath("ntfy")).toBe(expected);
+  });
+
+  it("should return notification-<key>.json path for desktop key", () => {
+    const expected = join(homedir(), ".config", "opencode", "notification-desktop.json");
+    expect(getConfigPath("desktop")).toBe(expected);
   });
 });
 

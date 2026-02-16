@@ -47,12 +47,23 @@ export interface NotificationSDKConfig {
   backend: Record<string, unknown>;
 }
 
-const CONFIG_PATH = join(
-  homedir(),
-  ".config",
-  "opencode",
-  "notification.json",
-);
+/**
+ * Compute the config file path for a given backend config key.
+ *
+ * When `backendConfigKey` is provided, the path is
+ * `~/.config/opencode/notification-<backendConfigKey>.json`.
+ * When omitted, falls back to `~/.config/opencode/notification.json`.
+ *
+ * @param backendConfigKey - Optional key identifying the backend plugin.
+ * @returns The absolute path to the config file.
+ */
+export function getConfigPath(backendConfigKey?: string): string {
+  const filename =
+    backendConfigKey != null
+      ? `notification-${backendConfigKey}.json`
+      : "notification.json";
+  return join(homedir(), ".config", "opencode", filename);
+}
 
 function createDefaultConfig(): NotificationSDKConfig {
   return {
@@ -178,18 +189,26 @@ export function parseConfigFile(content: string): NotificationSDKConfig {
 }
 
 /**
- * Load the notification SDK configuration from `~/.config/opencode/notification.json`.
+ * Load the notification SDK configuration from the appropriate config file.
+ *
+ * When `backendConfigKey` is provided, reads from
+ * `~/.config/opencode/notification-<backendConfigKey>.json`.
+ * When omitted, reads from `~/.config/opencode/notification.json`.
  *
  * If the config file does not exist, returns an all-defaults configuration
- * (everything enabled, no cooldown, no templates). If the file exists but
- * contains invalid JSON or invalid config values, throws an error.
+ * (everything enabled, no cooldown, no templates, empty backend config).
+ * If the file exists but contains invalid JSON or invalid config values,
+ * throws an error.
  *
+ * @param backendConfigKey - Optional key identifying the backend plugin,
+ *   used to determine the config file path.
  * @returns The loaded and validated configuration with defaults applied.
  * @throws {Error} If the config file exists but contains malformed JSON or invalid values.
  */
-export function loadConfig(): NotificationSDKConfig {
+export function loadConfig(backendConfigKey?: string): NotificationSDKConfig {
+  const configPath = getConfigPath(backendConfigKey);
   try {
-    const content = readFileSync(CONFIG_PATH, "utf-8");
+    const content = readFileSync(configPath, "utf-8");
     return parseConfigFile(content);
   } catch (error: unknown) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
