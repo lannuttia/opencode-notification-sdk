@@ -112,7 +112,7 @@ export default plugin;
 
 ### Using `backendConfigKey`
 
-If your backend needs user-configurable settings (API keys, server URLs, etc.), you can specify a `backendConfigKey`. This tells end users which key to use in their `notification.json` config file:
+If your backend needs user-configurable settings (API keys, server URLs, etc.), provide a `backendConfigKey`. This determines which config file the SDK loads for your plugin:
 
 ```typescript
 import { createNotificationPlugin } from "opencode-notification-sdk";
@@ -124,9 +124,11 @@ const plugin = createNotificationPlugin(myBackend, {
 export default plugin;
 ```
 
+With `backendConfigKey: "mybackend"`, the SDK loads config from `~/.config/opencode/notification-mybackend.json`. Without a key, it falls back to `~/.config/opencode/notification.json`.
+
 ### Accessing backend-specific configuration
 
-To read your backend's configuration section from the shared config file, use `loadConfig()` and `getBackendConfig()`:
+To read your backend's configuration section from the config file, use `loadConfig()` and `getBackendConfig()`:
 
 ```typescript
 import {
@@ -134,28 +136,28 @@ import {
   getBackendConfig,
 } from "opencode-notification-sdk";
 
-// Load the full config from ~/.config/opencode/notification.json
-const config = loadConfig();
+// Load the config from ~/.config/opencode/notification-mybackend.json
+const config = loadConfig("mybackend");
 
-// Extract your backend's section (e.g. config.backends.mybackend)
-const backendConfig = getBackendConfig(config, "mybackend");
-// backendConfig is Record<string, unknown> | undefined
+// Extract the backend-specific section (config.backend)
+const backendConfig = getBackendConfig(config);
+// backendConfig is Record<string, unknown>
 
-if (backendConfig) {
-  const serverUrl = typeof backendConfig.server === "string"
-    ? backendConfig.server
-    : "https://default.example.com";
-  // Use serverUrl in your backend...
-}
+const serverUrl = typeof backendConfig.server === "string"
+  ? backendConfig.server
+  : "https://default.example.com";
+// Use serverUrl in your backend...
 ```
 
 ## Configuration
 
-End users configure all notification plugins through a single shared config file at:
+End users configure each notification plugin through its own config file:
 
 ```
-~/.config/opencode/notification.json
+~/.config/opencode/notification-<backendConfigKey>.json
 ```
+
+For example, if your plugin uses `backendConfigKey: "webhook"`, users create `~/.config/opencode/notification-webhook.json`.
 
 ### Config file structure
 
@@ -177,11 +179,9 @@ End users configure all notification plugins through a single shared config file
       "messageCmd": null
     }
   },
-  "backends": {
-    "mybackend": {
-      "server": "https://hooks.example.com",
-      "apiKey": "secret-key"
-    }
+  "backend": {
+    "server": "https://hooks.example.com",
+    "apiKey": "secret-key"
   }
 }
 ```
@@ -195,21 +195,19 @@ End users configure all notification plugins through a single shared config file
 | `events.<type>.enabled` | `boolean` | `true` | Per-event enable/disable toggle |
 | `templates.<type>.titleCmd` | `string \| null` | `null` | Shell command to generate the notification title |
 | `templates.<type>.messageCmd` | `string \| null` | `null` | Shell command to generate the notification message |
-| `backends.<name>` | `object` | -- | Backend-specific configuration (your plugin reads this) |
+| `backend` | `object` | `{}` | Backend-specific configuration (your plugin reads this) |
 
-When the config file does not exist, all defaults are used (everything enabled, no cooldown, no templates, no backend-specific config).
+When the config file does not exist, all defaults are used (everything enabled, no cooldown, no templates, empty backend config).
 
 ### Adding backend-specific config
 
-Tell your users to add a section under `backends` using the key you specified in `backendConfigKey`:
+Tell your users to add their backend settings under the `backend` key in the plugin's config file:
 
 ```json
 {
-  "backends": {
-    "mybackend": {
-      "server": "https://hooks.example.com",
-      "apiKey": "your-api-key"
-    }
+  "backend": {
+    "server": "https://hooks.example.com",
+    "apiKey": "your-api-key"
   }
 }
 ```
@@ -230,14 +228,14 @@ import { createNotificationPlugin, loadConfig, getBackendConfig } from "opencode
 const webhookBackend: NotificationBackend = {
   async send(context: NotificationContext): Promise<void> {
     // Read backend-specific config
-    const config = loadConfig();
-    const backendConfig = getBackendConfig(config, "webhook");
+    const config = loadConfig("webhook");
+    const backendConfig = getBackendConfig(config);
 
-    const url = typeof backendConfig?.url === "string"
+    const url = typeof backendConfig.url === "string"
       ? backendConfig.url
       : "https://hooks.example.com/notify";
 
-    const apiKey = typeof backendConfig?.apiKey === "string"
+    const apiKey = typeof backendConfig.apiKey === "string"
       ? backendConfig.apiKey
       : "";
 
@@ -274,7 +272,7 @@ const plugin = createNotificationPlugin(webhookBackend, {
 export default plugin;
 ```
 
-### User configuration (`~/.config/opencode/notification.json`)
+### User configuration (`~/.config/opencode/notification-webhook.json`)
 
 ```json
 {
@@ -284,11 +282,9 @@ export default plugin;
     "session.error": { "enabled": true },
     "permission.asked": { "enabled": true }
   },
-  "backends": {
-    "webhook": {
-      "url": "https://hooks.myserver.com/opencode",
-      "apiKey": "my-secret-key"
-    }
+  "backend": {
+    "url": "https://hooks.myserver.com/opencode",
+    "apiKey": "my-secret-key"
   }
 }
 ```

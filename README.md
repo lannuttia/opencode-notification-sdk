@@ -46,7 +46,9 @@ const myBackend: NotificationBackend = {
   },
 };
 
-const plugin = createNotificationPlugin(myBackend);
+const plugin = createNotificationPlugin(myBackend, {
+  backendConfigKey: "mybackend",
+});
 
 export default plugin;
 ```
@@ -55,13 +57,15 @@ That's it. The SDK handles event filtering, subagent suppression, rate limiting,
 
 ## Configuration
 
-All notification plugins share a single config file at:
+Each backend plugin has its own config file. The config file path is determined by the `backendConfigKey` provided to `createNotificationPlugin()`:
 
 ```
-~/.config/opencode/notification.json
+~/.config/opencode/notification-<backendConfigKey>.json
 ```
 
-When the config file does not exist, all defaults are used (everything enabled, no cooldown, no templates).
+For example, a plugin with `backendConfigKey: "ntfy"` reads from `~/.config/opencode/notification-ntfy.json`. If no `backendConfigKey` is provided, the SDK falls back to `~/.config/opencode/notification.json`.
+
+When the config file does not exist, all defaults are used (everything enabled, no cooldown, no templates, empty backend config).
 
 ### Config File Schema
 
@@ -83,11 +87,9 @@ When the config file does not exist, all defaults are used (everything enabled, 
       "messageCmd": null
     }
   },
-  "backends": {
-    "ntfy": {
-      "topic": "my-topic",
-      "server": "https://ntfy.sh"
-    }
+  "backend": {
+    "topic": "my-topic",
+    "server": "https://ntfy.sh"
   }
 }
 ```
@@ -103,7 +105,7 @@ When the config file does not exist, all defaults are used (everything enabled, 
 | `events.<type>.enabled` | `boolean` | `true` | Per-event enable/disable toggle |
 | `templates.<type>.titleCmd` | `string \| null` | `null` | Shell command to generate notification title |
 | `templates.<type>.messageCmd` | `string \| null` | `null` | Shell command to generate notification message |
-| `backends.<name>` | `object` | `{}` | Backend-specific configuration sections |
+| `backend` | `object` | `{}` | Backend-specific configuration for this plugin |
 
 ### Template Variables
 
@@ -143,25 +145,24 @@ function createNotificationPlugin(
 ```
 
 - `backend` -- an object implementing the `NotificationBackend` interface
-- `options.backendConfigKey` -- key under `config.backends` for backend-specific configuration
+- `options.backendConfigKey` -- determines the config file path (`~/.config/opencode/notification-<key>.json`)
 
-### `loadConfig()`
+### `loadConfig(backendConfigKey?)`
 
-Loads the notification SDK configuration from `~/.config/opencode/notification.json`. Returns all defaults if the file does not exist.
+Loads the notification SDK configuration from the appropriate config file. Accepts an optional `backendConfigKey` to determine the config file path.
 
 ```typescript
-function loadConfig(): NotificationSDKConfig;
+function loadConfig(backendConfigKey?: string): NotificationSDKConfig;
 ```
 
-### `getBackendConfig(config, backendName)`
+### `getBackendConfig(config)`
 
-Extracts a backend-specific configuration section from the full config.
+Extracts the backend-specific configuration from the full config.
 
 ```typescript
 function getBackendConfig(
-  config: NotificationSDKConfig,
-  backendName: string
-): Record<string, unknown> | undefined;
+  config: NotificationSDKConfig
+): Record<string, unknown>;
 ```
 
 ### `parseISO8601Duration(duration)`
