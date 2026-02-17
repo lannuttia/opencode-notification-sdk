@@ -603,6 +603,33 @@ describe("createNotificationPlugin", () => {
     expect(sentContexts[0].metadata.projectName).toBe("my-awesome-project");
   });
 
+  it("should handle permission.asked with mixed-type array pattern (non-string elements) by omitting patterns", async () => {
+    const { backend, sentContexts } = createCapturingBackend();
+    const config = createDefaultTestConfig();
+
+    const plugin = createNotificationPlugin(backend, { config });
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    const permissionEvent = {
+      event: {
+        type: "permission.asked",
+        properties: {
+          sessionID: "sess-perm-mixed",
+          type: "file.write",
+          pattern: ["valid-string", 42, "another-string"],
+        },
+      },
+    };
+    // @ts-expect-error permission.asked is not yet in the @opencode-ai/plugin Event union
+    await hooks.event!(permissionEvent);
+
+    expect(sentContexts).toHaveLength(1);
+    expect(sentContexts[0].event).toBe("permission.asked");
+    // Mixed-type array should not pass the every() check, so patterns should be undefined
+    expect(sentContexts[0].metadata.permissionPatterns).toBeUndefined();
+  });
+
   it("should skip subagent check when session.error has empty sessionID and still send", async () => {
     const { backend, sentContexts } = createCapturingBackend();
     const config = createDefaultTestConfig();
