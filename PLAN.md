@@ -41,13 +41,13 @@
 
 ## Phase 5: Content Utilities (`src/templates.ts`)
 
-- [ ] Replace `resolveField()` with three composable functions:
+- [x] Replace `resolveField()` with three composable functions:
   - `renderTemplate(template, context)` -- pure synchronous string interpolation of `{var}` placeholders from `NotificationContext`
   - `execCommand($, command)` -- executes a shell command and returns trimmed stdout; rejects on failure
   - `execTemplate($, template, context)` -- combines `renderTemplate()` and `execCommand()`
-- [ ] Update `tests/mock-shell.ts` if needed
-- [ ] Rewrite tests in `tests/templates.test.ts` for new function signatures
-- [ ] Ensure tests pass and package builds cleanly
+- [x] Update `tests/mock-shell.ts` if needed
+- [x] Rewrite tests in `tests/templates.test.ts` for new function signatures
+- [x] Ensure tests pass and package builds cleanly
 
 ## Phase 6: Event Filtering (`src/events.ts`)
 
@@ -74,7 +74,7 @@
 - [x] Call `backend.send()`, catch and ignore errors
 - [x] Plugin factory tests must NOT use `vi.mock()` -- supply dependencies directly
 - [x] Update integration tests in `tests/plugin-factory.test.ts` to match new `NotificationContext` shape (no title/message)
-- [ ] Ensure tests pass and package builds cleanly
+- [x] Ensure tests pass and package builds cleanly
 
 ## Phase 8: Public API (`src/index.ts`)
 
