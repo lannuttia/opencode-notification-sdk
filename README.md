@@ -3,7 +3,7 @@
 [![CI](https://github.com/lannuttia/opencode-notification-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/lannuttia/opencode-notification-sdk/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/lannuttia/opencode-notification-sdk/graph/badge.svg)](https://codecov.io/gh/lannuttia/opencode-notification-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/lannuttia/opencode-notification-sdk/blob/main/LICENSE)
-[![Snyk Vulnerabilities](https://img.shields.io/snyk/vulnerabilities/npm/opencode-notification-sdk)](https://security.snyk.io/package/npm/opencode-notification-sdk)
+[![Known Vulnerabilities](https://snyk.io/test/github/lannuttia/opencode-notification-sdk/badge.svg)](https://snyk.io/test/github/lannuttia/opencode-notification-sdk)
 
 A TypeScript SDK that provides a standard notification decision engine for [OpenCode](https://opencode.ai) plugins. Backend notification plugins (ntfy.sh, desktop notifications, Slack, etc.) only need to implement a simple `send()` method -- the SDK handles everything else.
 
