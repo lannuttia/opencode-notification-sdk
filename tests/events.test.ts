@@ -56,6 +56,18 @@ describe("isSubagentSession", () => {
     const result = await isSubagentSession(client, "any-session");
     expect(result).toBe(false);
   });
+
+  it("should return false when parentID is an empty string", async () => {
+    const client: SessionClient = {
+      session: {
+        get: async () => ({
+          data: { parentID: "" },
+        }),
+      },
+    };
+    const result = await isSubagentSession(client, "root-session");
+    expect(result).toBe(false);
+  });
 });
 
 describe("extractSessionIdleMetadata", () => {
