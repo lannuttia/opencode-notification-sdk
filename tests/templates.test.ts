@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveField, renderTemplate, execCommand } from "../src/templates.js";
+import { resolveField, renderTemplate, execCommand, execTemplate } from "../src/templates.js";
 import type { NotificationContext } from "../src/types.js";
 import { createMockShell, createThrowingMockShell, createCapturingMockShell } from "./mock-shell.js";
 
@@ -114,6 +114,42 @@ describe("execCommand", () => {
   it("should reject when command throws an exception", async () => {
     const $ = createThrowingMockShell(new Error("command not found"));
     await expect(execCommand($, "nonexistent-cmd")).rejects.toThrow("command not found");
+  });
+});
+
+describe("execTemplate", () => {
+  it("should render template variables and execute the resulting command", async () => {
+    const { $, getCapturedCommands } = createCapturingMockShell({
+      exitCode: 0,
+      stdout: "session.idle in my-project\n",
+    });
+    const context: NotificationContext = {
+      event: "session.idle",
+      metadata: {
+        sessionId: "sess-1",
+        projectName: "my-project",
+        timestamp: "2026-02-16T00:00:00Z",
+      },
+    };
+    const result = await execTemplate($, "echo {event} in {project}", context);
+    expect(result).toBe("session.idle in my-project");
+
+    const commands = getCapturedCommands();
+    expect(commands).toHaveLength(1);
+    expect(commands[0]).toBe("echo session.idle in my-project");
+  });
+
+  it("should reject when the executed command fails", async () => {
+    const $ = createMockShell({ exitCode: 1, stdout: "" });
+    const context: NotificationContext = {
+      event: "session.idle",
+      metadata: {
+        sessionId: "sess-1",
+        projectName: "my-project",
+        timestamp: "2026-02-16T00:00:00Z",
+      },
+    };
+    await expect(execTemplate($, "failing-cmd {event}", context)).rejects.toThrow();
   });
 });
 

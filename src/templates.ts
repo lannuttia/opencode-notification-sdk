@@ -48,6 +48,26 @@ export async function execCommand(
   return output;
 }
 
+/**
+ * Combine {@link renderTemplate} and {@link execCommand} into a single
+ * operation: render template variables into a command string, execute it,
+ * and return the stdout.
+ *
+ * @param $ - The Bun shell from {@link PluginInput}.
+ * @param template - A command template string containing `{var_name}` placeholders.
+ * @param context - The notification context from which to derive variable values.
+ * @returns A promise that resolves to the trimmed stdout of the executed command.
+ * @throws If the command fails (non-zero exit code) or throws an exception.
+ */
+export async function execTemplate(
+  $: PluginInput["$"],
+  template: string,
+  context: NotificationContext,
+): Promise<string> {
+  const command = renderTemplate(template, context);
+  return execCommand($, command);
+}
+
 function substituteVariables(
   template: string,
   variables: Record<string, string>,
