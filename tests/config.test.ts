@@ -106,6 +106,76 @@ describe("parseConfigFile", () => {
     expect(config.events["permission.asked"].enabled).toBe(true);
   });
 
+  it("should throw when JSON is a valid array instead of an object", () => {
+    expect(() => parseConfigFile(JSON.stringify([1, 2, 3]))).toThrow(
+      /expected a JSON object/,
+    );
+  });
+
+  it("should throw when JSON is a valid string instead of an object", () => {
+    expect(() => parseConfigFile(JSON.stringify("hello"))).toThrow(
+      /expected a JSON object/,
+    );
+  });
+
+  it("should throw when JSON is a valid number instead of an object", () => {
+    expect(() => parseConfigFile(JSON.stringify(42))).toThrow(
+      /expected a JSON object/,
+    );
+  });
+
+  it("should throw when JSON is null", () => {
+    expect(() => parseConfigFile(JSON.stringify(null))).toThrow(
+      /expected a JSON object/,
+    );
+  });
+
+  it("should fall back to default enabled (true) when enabled field is a string", () => {
+    const config = parseConfigFile(JSON.stringify({ enabled: "yes" }));
+    expect(config.enabled).toBe(true);
+  });
+
+  it("should fall back to default enabled (true) when enabled field is a number", () => {
+    const config = parseConfigFile(JSON.stringify({ enabled: 1 }));
+    expect(config.enabled).toBe(true);
+  });
+
+  it("should use default when an event entry is a non-record value (string)", () => {
+    const config = parseConfigFile(
+      JSON.stringify({
+        events: {
+          "session.idle": "invalid",
+        },
+      }),
+    );
+    expect(config.events["session.idle"].enabled).toBe(true);
+  });
+
+  it("should use default when an event entry has a non-boolean enabled field", () => {
+    const config = parseConfigFile(
+      JSON.stringify({
+        events: {
+          "session.idle": { enabled: "not-a-boolean" },
+        },
+      }),
+    );
+    expect(config.events["session.idle"].enabled).toBe(true);
+  });
+
+  it("should fall back to empty backend when backend field is a string", () => {
+    const config = parseConfigFile(
+      JSON.stringify({ backend: "invalid" }),
+    );
+    expect(config.backend).toEqual({});
+  });
+
+  it("should fall back to empty backend when backend field is an array", () => {
+    const config = parseConfigFile(
+      JSON.stringify({ backend: [1, 2, 3] }),
+    );
+    expect(config.backend).toEqual({});
+  });
+
 });
 
 describe("getBackendConfig", () => {

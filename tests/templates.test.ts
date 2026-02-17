@@ -111,6 +111,13 @@ describe("execCommand", () => {
     await expect(execCommand($, "failing-cmd")).rejects.toThrow();
   });
 
+  it("should include exit code and command in the error message on failure", async () => {
+    const $ = createMockShell({ exitCode: 2, stdout: "" });
+    await expect(execCommand($, "bad-command --flag")).rejects.toThrow(
+      "Command failed with exit code 2: bad-command --flag",
+    );
+  });
+
   it("should reject when command throws an exception", async () => {
     const $ = createThrowingMockShell(new Error("command not found"));
     await expect(execCommand($, "nonexistent-cmd")).rejects.toThrow("command not found");

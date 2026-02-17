@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   NOTIFICATION_EVENTS,
+  isRecord,
 } from "../src/types.js";
 import type {
   NotificationContext,
@@ -49,6 +50,40 @@ describe("NotificationContext", () => {
     };
     // Verify isSubagent does not exist as a property
     expect("isSubagent" in context.metadata).toBe(false);
+  });
+});
+
+describe("isRecord", () => {
+  it("should return true for a plain object", () => {
+    expect(isRecord({ key: "value" })).toBe(true);
+  });
+
+  it("should return true for an empty object", () => {
+    expect(isRecord({})).toBe(true);
+  });
+
+  it("should return false for null", () => {
+    expect(isRecord(null)).toBe(false);
+  });
+
+  it("should return false for undefined", () => {
+    expect(isRecord(undefined)).toBe(false);
+  });
+
+  it("should return false for an array", () => {
+    expect(isRecord([1, 2, 3])).toBe(false);
+  });
+
+  it("should return false for a string", () => {
+    expect(isRecord("hello")).toBe(false);
+  });
+
+  it("should return false for a number", () => {
+    expect(isRecord(42)).toBe(false);
+  });
+
+  it("should return false for a boolean", () => {
+    expect(isRecord(true)).toBe(false);
   });
 });
 

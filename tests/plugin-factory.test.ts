@@ -453,4 +453,178 @@ describe("createNotificationPlugin", () => {
     expect(hooks["tool.execute.before"]).toBeUndefined();
   });
 
+  it("should not call backend.send() when permission.asked event type is disabled", async () => {
+    const config = createDefaultTestConfig();
+    config.events["permission.asked"] = { enabled: false };
+
+    const { backend, wasCalled } = createTrackingBackend();
+
+    const plugin = createNotificationPlugin(backend, { config });
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    const permissionEvent = {
+      event: {
+        type: "permission.asked",
+        properties: {
+          sessionID: "sess-perm-disabled",
+          type: "file.write",
+          pattern: ["/tmp/*.txt"],
+        },
+      },
+    };
+    // @ts-expect-error permission.asked is not yet in the @opencode-ai/plugin Event union
+    await hooks.event!(permissionEvent);
+
+    expect(wasCalled()).toBe(false);
+  });
+
+  it("should not call backend.send() when session.error event type is disabled", async () => {
+    const config = createDefaultTestConfig();
+    config.events["session.error"] = { enabled: false };
+
+    const { backend, wasCalled } = createTrackingBackend();
+
+    const plugin = createNotificationPlugin(backend, { config });
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    await hooks.event!({
+      event: {
+        type: "session.error",
+        properties: {
+          sessionID: "sess-err-disabled",
+          error: {
+            name: "UnknownError",
+            data: { message: "should not send" },
+          },
+        },
+      },
+    });
+
+    expect(wasCalled()).toBe(false);
+  });
+
+  it("should handle permission.asked with missing properties gracefully", async () => {
+    const { backend, sentContexts } = createCapturingBackend();
+    const config = createDefaultTestConfig();
+
+    const plugin = createNotificationPlugin(backend, { config });
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    // Simulate a permission.asked event with no properties at all
+    const permissionEvent = {
+      event: {
+        type: "permission.asked",
+      },
+    };
+    // @ts-expect-error permission.asked is not yet in the @opencode-ai/plugin Event union
+    await hooks.event!(permissionEvent);
+
+    expect(sentContexts).toHaveLength(1);
+    expect(sentContexts[0].event).toBe("permission.asked");
+    expect(sentContexts[0].metadata.sessionId).toBe("");
+    expect(sentContexts[0].metadata.permissionType).toBe("");
+    expect(sentContexts[0].metadata.permissionPatterns).toBeUndefined();
+  });
+
+  it("should handle permission.asked with non-string sessionID and type gracefully", async () => {
+    const { backend, sentContexts } = createCapturingBackend();
+    const config = createDefaultTestConfig();
+
+    const plugin = createNotificationPlugin(backend, { config });
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    const permissionEvent = {
+      event: {
+        type: "permission.asked",
+        properties: {
+          sessionID: 12345,
+          type: { nested: true },
+          pattern: 42,
+        },
+      },
+    };
+    // @ts-expect-error permission.asked is not yet in the @opencode-ai/plugin Event union
+    await hooks.event!(permissionEvent);
+
+    expect(sentContexts).toHaveLength(1);
+    expect(sentContexts[0].event).toBe("permission.asked");
+    // Non-string values should fall back to empty strings
+    expect(sentContexts[0].metadata.sessionId).toBe("");
+    expect(sentContexts[0].metadata.permissionType).toBe("");
+    // Non-string/non-array pattern should be undefined
+    expect(sentContexts[0].metadata.permissionPatterns).toBeUndefined();
+  });
+
+  it("should handle permission.asked with a single string pattern", async () => {
+    const { backend, sentContexts } = createCapturingBackend();
+    const config = createDefaultTestConfig();
+
+    const plugin = createNotificationPlugin(backend, { config });
+    const input = createMockPluginInput();
+    const hooks = await plugin(input);
+
+    const permissionEvent = {
+      event: {
+        type: "permission.asked",
+        properties: {
+          sessionID: "sess-perm-str",
+          type: "shell.execute",
+          pattern: "rm -rf /tmp/*",
+        },
+      },
+    };
+    // @ts-expect-error permission.asked is not yet in the @opencode-ai/plugin Event union
+    await hooks.event!(permissionEvent);
+
+    expect(sentContexts).toHaveLength(1);
+    expect(sentContexts[0].metadata.permissionPatterns).toEqual(["rm -rf /tmp/*"]);
+  });
+
+  it("should skip subagent check when session.error has empty sessionID and still send", async () => {
+    const { backend, sentContexts } = createCapturingBackend();
+    const config = createDefaultTestConfig();
+
+    let sessionGetCalled = false;
+    const mockClient: SessionClient = {
+      session: {
+        get: async () => {
+          sessionGetCalled = true;
+          return { data: { parentID: "parent-session" } };
+        },
+      },
+    };
+
+    const plugin = createNotificationPlugin(backend, { config });
+    const input = {
+      client: mockClient,
+      directory: "/test/project",
+      $: createMockShell(),
+    };
+    const hooks = await plugin(input);
+
+    await hooks.event!({
+      event: {
+        type: "session.error",
+        properties: {
+          error: {
+            name: "UnknownError",
+            data: { message: "error without session" },
+          },
+        },
+      },
+    });
+
+    // session.get() should NOT be called because sessionID is empty
+    expect(sessionGetCalled).toBe(false);
+    // Should still send the notification
+    expect(sentContexts).toHaveLength(1);
+    expect(sentContexts[0].event).toBe("session.error");
+    expect(sentContexts[0].metadata.sessionId).toBe("");
+    expect(sentContexts[0].metadata.error).toBe("error without session");
+  });
+
 });
