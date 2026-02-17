@@ -22,11 +22,9 @@ describe("NotificationEvent", () => {
 });
 
 describe("NotificationContext", () => {
-  it("should be constructable with valid fields", () => {
+  it("should be constructable with event and metadata only (no title or message)", () => {
     const context: NotificationContext = {
       event: "session.idle",
-      title: "Agent Idle",
-      message: "The agent has finished.",
       metadata: {
         sessionId: "abc-123",
         projectName: "my-project",
@@ -34,16 +32,14 @@ describe("NotificationContext", () => {
       },
     };
     expect(context.event).toBe("session.idle");
-    expect(context.title).toBe("Agent Idle");
-    expect(context.message).toBe("The agent has finished.");
     expect(context.metadata.sessionId).toBe("abc-123");
+    expect("title" in context).toBe(false);
+    expect("message" in context).toBe(false);
   });
 
   it("should not have isSubagent on metadata", () => {
     const context: NotificationContext = {
       event: "session.error",
-      title: "Error",
-      message: "Something went wrong.",
       metadata: {
         sessionId: "xyz-789",
         projectName: "test-project",
@@ -66,8 +62,6 @@ describe("NotificationBackend", () => {
     };
     const context: NotificationContext = {
       event: "session.error",
-      title: "Error",
-      message: "Something went wrong.",
       metadata: {
         sessionId: "xyz-789",
         projectName: "test-project",

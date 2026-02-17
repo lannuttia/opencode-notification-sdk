@@ -45,17 +45,15 @@ export interface EventMetadata {
  * The notification context passed to a {@link NotificationBackend} when a
  * notification should be delivered.
  *
- * Contains the resolved title, message, canonical event type, and metadata.
- * The title and message are already resolved from shell command templates
- * or default values before being passed to the backend.
+ * Contains the canonical event type and metadata. The SDK does not prescribe
+ * what fields a notification must contain (e.g., title, message, body).
+ * Backends decide what content they need and can use the content utilities
+ * (`renderTemplate`, `execCommand`, `execTemplate`) to produce it from
+ * the context data.
  */
 export interface NotificationContext {
   /** The canonical notification event type. */
   event: NotificationEvent;
-  /** The resolved notification title (from template command or default). */
-  title: string;
-  /** The resolved notification message (from template command or default). */
-  message: string;
   /** Metadata associated with the event. */
   metadata: EventMetadata;
 }

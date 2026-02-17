@@ -4,7 +4,7 @@ You are building a TypeScript SDK that provides a standard notification decision
 
 ## Goal
 
-Build a TypeScript library (`opencode-notification-sdk`) that handles all notification decision logic -- event filtering and shell command templates -- so that notification backend plugins (ntfy.sh, desktop notifications, Slack, etc.) only need to implement a simple `send()` method.
+Build a TypeScript library (`opencode-notification-sdk`) that handles all notification decision logic -- event filtering and subagent suppression -- so that notification backend plugins (ntfy.sh, desktop notifications, Slack, etc.) only need to implement a simple `send()` method. The SDK also provides utilities for template rendering, shell command execution, and combining the two, so backends can produce dynamic notification content from context data.
 
 ## Instructions
 
@@ -34,11 +34,13 @@ The SDK is a standalone npm package that backend notification plugins depend on.
 
 1. **Event filtering** -- determining which OpenCode plugin events should trigger notifications
 2. **Subagent suppression** -- silently suppressing notifications from sub-agent (child) sessions
-3. **Shell command templates** -- customizable notification fields via shell commands with `{var}` substitution
-4. **Default notification content** -- sensible defaults for titles, messages, and metadata per event type
-5. **Plugin factory** -- a `createNotificationPlugin()` function that wires everything together and returns OpenCode `Hooks`
+3. **Content utilities** -- three composable functions for producing dynamic notification content:
+   - `renderTemplate()` -- pure string interpolation of `{var}` placeholders from a `NotificationContext`
+   - `execCommand()` -- executes a shell command string and returns its stdout
+   - `execTemplate()` -- combines the two: renders template variables into a command string, executes it, and returns the stdout
+4. **Plugin factory** -- a `createNotificationPlugin()` function that wires everything together and returns OpenCode `Hooks`
 
-Backend plugins implement a single `NotificationBackend` interface and call `createNotificationPlugin()` to get a fully functional plugin.
+Backend plugins implement a single `NotificationBackend` interface and call `createNotificationPlugin()` to get a fully functional plugin. The SDK does not prescribe what fields a notification must contain (e.g., title, message, body). Backends decide what content they need and can use the content utilities to produce it from the `NotificationContext`.
 
 ### Supported Events
 
@@ -91,12 +93,6 @@ Each plugin's config file contains the shared notification settings plus a singl
     "session.error": { "enabled": true },
     "permission.asked": { "enabled": true }
   },
-  "templates": {
-    "session.idle": {
-      "titleCmd": null,
-      "messageCmd": null
-    }
-  },
   "backend": {
     "topic": "my-topic",
     "server": "https://ntfy.sh"
@@ -125,45 +121,69 @@ And `~/.config/opencode/notification-desktop.json`:
 | `enabled` | `boolean` | `true` | Global kill switch for all notifications from this plugin |
 | `events` | `object` | (all enabled) | Per-event enable/disable toggles |
 | `events.<type>.enabled` | `boolean` | `true` | Whether this event type triggers notifications |
-| `templates` | `object \| null` | `null` | Per-event shell command templates |
-| `templates.<type>.titleCmd` | `string \| null` | `null` | Shell command to generate notification title |
-| `templates.<type>.messageCmd` | `string \| null` | `null` | Shell command to generate notification message |
 | `backend` | `object` | `{}` | Backend-specific configuration for this plugin |
 
-When the config file does not exist, all defaults are used (everything enabled, no templates, empty backend config).
+When the config file does not exist, all defaults are used (everything enabled, empty backend config).
 
-### Default Notification Content (`src/defaults.ts`)
+### Content Utilities (`src/templates.ts`)
 
-The SDK provides default titles and messages for each event type. These are used when no shell command template is configured for the field.
+The SDK provides three composable functions for producing dynamic notification content. These are standalone utilities -- the SDK does not call them automatically. Backends call them when they need to produce formatted strings or execute shell commands to generate content.
 
-| Event | Default Title | Default Message |
-|---|---|---|
-| `session.idle` | `"Agent Idle"` | `"The agent has finished and is waiting for input."` |
-| `session.error` | `"Agent Error"` | `"An error occurred. Check the session for details."` |
-| `permission.asked` | `"Permission Asked"` | `"The agent needs permission to continue."` |
+#### `renderTemplate()`
 
-### Shell Command Templates (`src/templates.ts`)
+```typescript
+function renderTemplate(template: string, context: NotificationContext): string;
+```
 
-Notification fields (title, message) can be customized per event type via shell commands. This module:
+Pure, synchronous string interpolation. This function:
 
-1. Takes the Bun `$` shell (from `PluginInput`), a command template string (or `null`/`undefined`), a variables record, and a fallback default value
-2. If the command template is `null`/`undefined`, returns the fallback
-3. Substitutes all `{var_name}` placeholders in the command with values from the variables record. Unset variables are substituted with empty strings
-4. Executes the substituted command via the Bun `$` shell, capturing stdout
-5. Returns the trimmed stdout if the command succeeds (exit code 0 and non-empty output)
-6. Returns the fallback value if the command fails (non-zero exit, exception, empty output)
+1. Takes a template string containing `{var_name}` placeholders and a `NotificationContext` object
+2. Substitutes all `{var_name}` placeholders with the corresponding values derived from the context
+3. Unrecognized variable names are substituted with empty strings
+4. Returns the resulting string
+
+The function performs no I/O, no shell execution, and has no side effects.
+
+#### `execCommand()`
+
+```typescript
+function execCommand($: PluginInput["$"], command: string): Promise<string>;
+```
+
+Executes a shell command and returns its output. This function:
+
+1. Takes the Bun `$` shell (from `PluginInput`) and a command string
+2. Executes the command via the Bun `$` shell, capturing stdout
+3. Returns a promise that resolves to the trimmed stdout if the command succeeds (exit code 0)
+4. Rejects the promise if the command fails (non-zero exit code) or throws an exception
+
+#### `execTemplate()`
+
+```typescript
+function execTemplate($: PluginInput["$"], template: string, context: NotificationContext): Promise<string>;
+```
+
+Combines `renderTemplate()` and `execCommand()` into a single operation. This function:
+
+1. Takes the Bun `$` shell, a command template string containing `{var_name}` placeholders, and a `NotificationContext` object
+2. Calls `renderTemplate()` to substitute all `{var_name}` placeholders in the template with values from the context
+3. Passes the resulting command string to `execCommand()` for execution
+4. Returns a promise that resolves to the trimmed stdout of the executed command
+5. Rejects the promise if the command fails (non-zero exit code) or throws an exception
 
 #### Template Variables
 
-| Variable | Available In | Description |
+The following variables are available for substitution in `renderTemplate()` and `execTemplate()`, all derived from the `NotificationContext`:
+
+| Variable | Source | Description |
 |---|---|---|
-| `{event}` | All events | The event type string (e.g., `session.idle`) |
-| `{time}` | All events | ISO 8601 timestamp |
-| `{project}` | All events | Project directory name (basename) |
-| `{error}` | `session.error` only | The error message (empty string for other events) |
-| `{permission_type}` | `permission.asked` only | The permission type (empty string for other events) |
-| `{permission_patterns}` | `permission.asked` only | Comma-separated list of patterns (empty string for other events) |
-| `{session_id}` | All events | The session ID (empty string if unavailable) |
+| `{event}` | `context.event` | The event type string (e.g., `session.idle`) |
+| `{time}` | `context.metadata.timestamp` | ISO 8601 timestamp |
+| `{project}` | `context.metadata.projectName` | Project directory name (basename) |
+| `{error}` | `context.metadata.error` | The error message (empty string if not present) |
+| `{permission_type}` | `context.metadata.permissionType` | The permission type (empty string if not present) |
+| `{permission_patterns}` | `context.metadata.permissionPatterns` | Comma-separated list of patterns (empty string if not present) |
+| `{session_id}` | `context.metadata.sessionId` | The session ID (empty string if unavailable) |
 
 ### Notification Context (`src/types.ts`)
 
@@ -172,8 +192,6 @@ When a notification passes all filters (enabled, event config, subagent suppress
 ```typescript
 interface NotificationContext {
   event: NotificationEvent;
-  title: string;
-  message: string;
   metadata: EventMetadata;
 }
 
@@ -187,7 +205,7 @@ interface EventMetadata {
 }
 ```
 
-The `title` and `message` fields are resolved from shell command templates (if configured) or defaults.
+The `NotificationContext` contains the event type and all associated metadata. It does not contain pre-resolved content fields like title or message -- backends are responsible for deciding what content they need. Backends can use the content utilities (`renderTemplate()`, `execCommand()`, `execTemplate()`) to produce formatted strings from the context data.
 
 ### Backend Interface (`src/types.ts`)
 
@@ -199,7 +217,7 @@ interface NotificationBackend {
 }
 ```
 
-The SDK calls `backend.send()` after all filtering and content resolution. The backend is responsible only for delivering the notification via its transport (HTTP, desktop notification, etc.). Errors thrown by `send()` are caught and silently ignored by the SDK (notifications should not crash the host).
+The SDK calls `backend.send()` after all filtering (enabled checks, per-event toggles, subagent suppression). The backend is responsible for constructing the notification payload from the `NotificationContext` and delivering it via its transport (HTTP, desktop notification, etc.). Backends can use the content utilities (`renderTemplate()`, `execCommand()`, `execTemplate()`) to produce formatted strings from the context if needed. Errors thrown by `send()` are caught and silently ignored by the SDK (notifications should not crash the host).
 
 ### Plugin Factory (`src/plugin-factory.ts`)
 
@@ -222,7 +240,7 @@ This function:
    - Checks `config.enabled` (global kill switch)
    - Checks `config.events[eventType].enabled` (per-event toggle)
    - Performs subagent suppression for `session.idle` and `session.error` events
-   - Resolves title and message via shell command templates or defaults
+   - Constructs a `NotificationContext` with the event type and metadata
    - Calls `backend.send(context)`
    - Catches and ignores errors from `backend.send()`
 5. If `options.backendConfigKey` is provided, the config is loaded from `~/.config/opencode/notification-<backendConfigKey>.json`, and the backend's config section is available via `config.backend` (the SDK does not interpret it; it's passed through for the backend to use)
@@ -232,6 +250,9 @@ This function:
 The SDK exports the following from `src/index.ts`:
 
 - `createNotificationPlugin` -- the plugin factory function
+- `renderTemplate` -- pure string interpolation of `{var}` placeholders from a `NotificationContext`
+- `execCommand` -- executes a shell command string and returns its stdout
+- `execTemplate` -- renders template variables into a command string, executes it, and returns the stdout
 - `NotificationBackend` -- the backend interface type
 - `NotificationContext` -- the context object type
 - `NotificationEvent` -- the event type union
@@ -257,15 +278,13 @@ opencode-notification-sdk/
     types.ts              # NotificationEvent, NotificationContext, NotificationBackend, EventMetadata
     events.ts             # Event filtering and subagent suppression
     config.ts             # Config file loading, validation, backend config extraction
-    defaults.ts           # Default notification content per event type
-    templates.ts          # Shell command template execution with {var} substitution
+    templates.ts          # Content utilities: renderTemplate(), execCommand(), execTemplate()
     plugin-factory.ts     # createNotificationPlugin() factory
   tests/
     types.test.ts         # Type conformance tests
     events.test.ts        # Event filtering and subagent suppression tests
     config.test.ts        # Config loading and validation tests
-    defaults.test.ts      # Default content tests
-    templates.test.ts     # Template execution tests
+    templates.test.ts     # Template rendering tests
     plugin-factory.test.ts # Integration tests for the plugin factory
   eslint.config.js
   package.json
@@ -280,11 +299,12 @@ opencode-notification-sdk/
 
 The project must include documentation (in a `docs/creating-a-plugin.md` file) that explains how to create a custom notification plugin using this SDK. The documentation should cover:
 
-1. **Overview** -- a brief explanation of the SDK's architecture and the role of a backend plugin (i.e., the SDK handles all decision logic; the plugin only implements delivery)
+1. **Overview** -- a brief explanation of the SDK's architecture and the role of a backend plugin (i.e., the SDK handles all decision logic; the plugin constructs and delivers the notification)
 2. **Prerequisites** -- what dependencies to install (`opencode-notification-sdk` and `@opencode-ai/plugin` as a peer dependency)
 3. **Implementing `NotificationBackend`** -- a step-by-step guide showing how to create a class or object that implements the `NotificationBackend` interface, including:
    - The `send(context: NotificationContext): Promise<void>` method signature
-   - How to use `context.title`, `context.message`, `context.event`, and `context.metadata` to construct the notification payload
+   - How to use `context.event` and `context.metadata` to construct the notification payload
+   - How to use the content utilities (`renderTemplate()`, `execCommand()`, `execTemplate()`) to produce formatted strings from the context (e.g., titles, messages, or any other text the backend needs)
    - Error handling expectations (the SDK catches errors from `send()`, but backends should still handle transient failures gracefully)
 4. **Using `createNotificationPlugin()`** -- how to wire the backend into a fully functional OpenCode plugin using the factory function, including:
    - Passing the backend instance
@@ -292,8 +312,8 @@ The project must include documentation (in a `docs/creating-a-plugin.md` file) t
    - Accessing backend-specific config via `getBackendConfig()`
 5. **Configuration** -- how end users configure the plugin via its own config file (`~/.config/opencode/notification-<backendConfigKey>.json`), including:
    - The `backend` section for backend-specific settings
-   - Customizing events and templates
-6. **Complete example** -- a full, minimal working example of a custom notification plugin (e.g., a simple webhook-based notifier) from start to finish, including the plugin entry point file that exports the plugin
+   - Customizing events
+6. **Complete example** -- a full, minimal working example of a custom notification plugin (e.g., a simple webhook-based notifier) from start to finish, including the plugin entry point file that exports the plugin. The example should demonstrate using the content utilities to produce notification content.
 7. **Testing tips** -- guidance on how plugin authors can test their backend implementation in isolation by constructing `NotificationContext` objects directly
 
 ### Node.js Version Support

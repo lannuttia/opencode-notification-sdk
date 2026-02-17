@@ -15,40 +15,39 @@
 
 - [x] Define `NotificationEvent` string literal union type (`session.idle`, `session.error`, `permission.asked`)
 - [x] Define `EventMetadata` interface (sessionId, projectName, timestamp, error?, permissionType?, permissionPatterns?)
-- [x] Define `NotificationContext` interface (event, title, message, metadata)
+- [x] Define `NotificationContext` interface with only `event` and `metadata` (no `title` or `message`)
 - [x] Define `NotificationBackend` interface with `send(context: NotificationContext): Promise<void>`
-- [x] Write type conformance tests in `tests/types.test.ts`
+- [x] Update type conformance tests in `tests/types.test.ts` to match new `NotificationContext` shape
 - [x] Ensure tests pass and package builds cleanly
 
-## Phase 3: Default Notification Content (`src/defaults.ts`)
+## Phase 3: Remove Default Notification Content
 
-- [x] Define default titles and messages for each `NotificationEvent` type
-- [x] Export `getDefaultTitle(event: NotificationEvent): string` function
-- [x] Export `getDefaultMessage(event: NotificationEvent): string` function
-- [x] Write tests in `tests/defaults.test.ts`
-- [x] Ensure tests pass and package builds cleanly
+- [ ] Delete `src/defaults.ts` (the SDK does not provide default titles/messages)
+- [ ] Delete `tests/defaults.test.ts`
+- [ ] Remove all references to `getDefaultTitle` and `getDefaultMessage` from the codebase
+- [ ] Ensure tests pass and package builds cleanly
 
 ## Phase 4: Configuration (`src/config.ts`)
 
-- [x] Define `NotificationSDKConfig` interface with singular `backend` key (not `backends` map)
+- [x] Define `NotificationSDKConfig` interface with `enabled`, `events`, and `backend` fields only (no `templates`)
 - [x] Implement `loadConfig(backendConfigKey?)` that reads from `~/.config/opencode/notification-<key>.json` (or `notification.json` when no key)
 - [x] Implement `getConfigPath(backendConfigKey?)` for computing config file path
 - [x] Handle missing config file gracefully (return all defaults)
 - [x] Handle malformed JSON gracefully (throw descriptive error)
 - [x] Implement `getBackendConfig(config)` that returns `config.backend`
-- [x] Write tests in `tests/config.test.ts`
-- [x] Ensure tests pass and package builds cleanly
+- [ ] Remove `templates` and `TemplateConfig` from config schema
+- [ ] Update tests in `tests/config.test.ts` to remove template references
+- [ ] Ensure tests pass and package builds cleanly
 
-## Phase 5: Shell Command Templates (`src/templates.ts`)
+## Phase 5: Content Utilities (`src/templates.ts`)
 
-- [x] Implement `resolveField($, commandTemplate, variables, fallback): Promise<string>` function
-- [x] Use `{var_name}` substitution syntax (not `${var_name}`)
-- [x] Handle null/undefined command template (return fallback)
-- [x] Handle command failure (return fallback)
-- [x] Handle empty stdout (return fallback)
-- [x] Create `tests/mock-shell.ts` shared mock BunShell factory
-- [x] Write tests in `tests/templates.test.ts`
-- [x] Ensure tests pass and package builds cleanly
+- [ ] Replace `resolveField()` with three composable functions:
+  - `renderTemplate(template, context)` -- pure synchronous string interpolation of `{var}` placeholders from `NotificationContext`
+  - `execCommand($, command)` -- executes a shell command and returns trimmed stdout; rejects on failure
+  - `execTemplate($, template, context)` -- combines `renderTemplate()` and `execCommand()`
+- [ ] Update `tests/mock-shell.ts` if needed
+- [ ] Rewrite tests in `tests/templates.test.ts` for new function signatures
+- [ ] Ensure tests pass and package builds cleanly
 
 ## Phase 6: Event Filtering (`src/events.ts`)
 
@@ -70,19 +69,19 @@
 - [x] In `event` handler: handle `session.idle`, `session.error`, and `permission.asked` events
 - [x] For `session.idle` and `session.error`: perform subagent suppression via `client.session.get()`
 - [x] For `permission.asked`: always send notification (no subagent check)
-- [x] Check ordering: `config.enabled` → `config.events[eventType].enabled` → subagent suppression → resolve title/message → call `backend.send()`
-- [x] Resolve title and message via shell command templates or defaults
+- [x] Check ordering: `config.enabled` → `config.events[eventType].enabled` → subagent suppression → construct `NotificationContext` → call `backend.send(context)` (no title/message resolution)
+- [x] Remove title/message resolution from plugin factory (backends decide their own content)
 - [x] Call `backend.send()`, catch and ignore errors
 - [x] Plugin factory tests must NOT use `vi.mock()` -- supply dependencies directly
-- [x] Write integration tests in `tests/plugin-factory.test.ts`
-- [x] Ensure tests pass and package builds cleanly
+- [x] Update integration tests in `tests/plugin-factory.test.ts` to match new `NotificationContext` shape (no title/message)
+- [ ] Ensure tests pass and package builds cleanly
 
 ## Phase 8: Public API (`src/index.ts`)
 
-- [x] Export only spec-required items: `createNotificationPlugin`, `loadConfig`, `getBackendConfig` (values), `NotificationBackend`, `NotificationContext`, `NotificationEvent`, `EventMetadata`, `NotificationSDKConfig` (types)
+- [ ] Export spec-required items: `createNotificationPlugin`, `renderTemplate`, `execCommand`, `execTemplate`, `loadConfig`, `getBackendConfig` (values), `NotificationBackend`, `NotificationContext`, `NotificationEvent`, `EventMetadata`, `NotificationSDKConfig` (types)
 - [x] Do NOT export internal helpers (`NOTIFICATION_EVENTS`, `parseConfigFile`)
-- [x] Write export verification tests
-- [x] Ensure tests pass, lint is clean, and package builds cleanly
+- [ ] Update export verification tests in `tests/index.test.ts`
+- [ ] Ensure tests pass, lint is clean, and package builds cleanly
 
 ## Phase 9: CI Pipeline
 
@@ -92,10 +91,10 @@
 
 ## Phase 10: Documentation
 
-- [x] Create `docs/creating-a-plugin.md` matching prompt spec (per-backend config file model)
-- [x] Create `README.md` documenting install, configure, and use (per-backend config file model)
+- [ ] Update `docs/creating-a-plugin.md` to reflect new API (no title/message on context, content utilities instead of shell templates)
+- [ ] Update `README.md` to reflect new API (no title/message, content utilities, no templates in config)
 
 ## Phase 11: JSDoc Docstrings on Public API
 
-- [x] Add JSDoc docstrings to all exported items
-- [x] Ensure tests pass, lint is clean, and package builds cleanly
+- [ ] Update JSDoc docstrings on all exported items to match new API
+- [ ] Ensure tests pass, lint is clean, and package builds cleanly

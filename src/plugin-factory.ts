@@ -1,6 +1,5 @@
 import { basename } from "node:path";
 import type { Plugin } from "@opencode-ai/plugin";
-import type { PluginInput } from "@opencode-ai/plugin";
 import { isRecord } from "./types.js";
 import type { NotificationBackend, NotificationEvent, EventMetadata } from "./types.js";
 import { loadConfig } from "./config.js";
@@ -10,41 +9,17 @@ import {
   extractSessionIdleMetadata,
   extractSessionErrorMetadata,
   extractPermissionMetadata,
-  buildTemplateVariables,
 } from "./events.js";
 import type { SessionClient } from "./events.js";
-import { getDefaultTitle, getDefaultMessage } from "./defaults.js";
-import { resolveField } from "./templates.js";
 
-async function resolveAndSend(
+async function sendNotification(
   backend: NotificationBackend,
-  $: PluginInput["$"],
-  config: NotificationSDKConfig,
   notificationEvent: NotificationEvent,
   metadata: EventMetadata,
 ): Promise<void> {
-  const templateVars = buildTemplateVariables(notificationEvent, metadata);
-  const templateConfig = config.templates?.[notificationEvent] ?? null;
-
-  const title = await resolveField(
-    $,
-    templateConfig?.titleCmd ?? null,
-    templateVars,
-    getDefaultTitle(notificationEvent),
-  );
-
-  const message = await resolveField(
-    $,
-    templateConfig?.messageCmd ?? null,
-    templateVars,
-    getDefaultMessage(notificationEvent),
-  );
-
   try {
     await backend.send({
       event: notificationEvent,
-      title,
-      message,
       metadata,
     });
   } catch {
@@ -72,9 +47,9 @@ export interface PluginFactoryOptions {
  * Create a fully functional OpenCode notification plugin from a backend implementation.
  *
  * This is the main entry point for backend plugin authors. It wires together
- * config loading, event classification, subagent suppression, shell command
- * template resolution, and default notification content — then calls
- * `backend.send()` for each notification that passes all filters.
+ * config loading, event classification, and subagent suppression — then calls
+ * `backend.send()` with a {@link NotificationContext} for each notification
+ * that passes all filters.
  *
  * Errors thrown by `backend.send()` are caught and silently ignored to ensure
  * notifications never crash the host process.
@@ -155,8 +130,8 @@ export function createNotificationPlugin(
             projectName,
           );
 
-          await resolveAndSend(
-            backend, input.$, config, notificationEvent, metadata,
+          await sendNotification(
+            backend, notificationEvent, metadata,
           );
           return;
         }
@@ -181,8 +156,8 @@ export function createNotificationPlugin(
             projectName,
           );
 
-          await resolveAndSend(
-            backend, input.$, config, notificationEvent, metadata,
+          await sendNotification(
+            backend, notificationEvent, metadata,
           );
         }
 
@@ -208,8 +183,8 @@ export function createNotificationPlugin(
             projectName,
           );
 
-          await resolveAndSend(
-            backend, input.$, config, notificationEvent, metadata,
+          await sendNotification(
+            backend, notificationEvent, metadata,
           );
         }
       },

@@ -107,13 +107,11 @@ describe("createNotificationPlugin", () => {
 
     const context = sentContexts[0];
     expect(context.event).toBe("session.idle");
-    expect(context.title).toBe("Agent Idle");
-    expect(context.message).toBe(
-      "The agent has finished and is waiting for input.",
-    );
     expect(context.metadata.sessionId).toBe("sess-123");
     expect(context.metadata.projectName).toBe("project");
-    // Should NOT have isSubagent
+    // Should NOT have title, message, or isSubagent
+    expect("title" in context).toBe(false);
+    expect("message" in context).toBe(false);
     expect("isSubagent" in context.metadata).toBe(false);
   });
 
@@ -305,10 +303,6 @@ describe("createNotificationPlugin", () => {
 
     expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].event).toBe("session.error");
-    expect(sentContexts[0].title).toBe("Agent Error");
-    expect(sentContexts[0].message).toBe(
-      "An error occurred. Check the session for details.",
-    );
     expect(sentContexts[0].metadata.error).toBe("something went wrong");
     expect(sentContexts[0].metadata.sessionId).toBe("sess-err-1");
   });
@@ -339,10 +333,6 @@ describe("createNotificationPlugin", () => {
 
     expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].event).toBe("permission.asked");
-    expect(sentContexts[0].title).toBe("Permission Asked");
-    expect(sentContexts[0].message).toBe(
-      "The agent needs permission to continue.",
-    );
     expect(sentContexts[0].metadata.permissionType).toBe("file.write");
     expect(sentContexts[0].metadata.permissionPatterns).toEqual([
       "/tmp/*.txt",
@@ -398,42 +388,6 @@ describe("createNotificationPlugin", () => {
         },
       }),
     ).resolves.toBeUndefined();
-  });
-
-  it("should use shell command template for title when configured", async () => {
-    const config = createDefaultTestConfig();
-    config.templates = {
-      "session.idle": {
-        titleCmd: "echo Custom {event} Title",
-        messageCmd: null,
-      },
-    };
-
-    const { backend, sentContexts } = createCapturingBackend();
-
-    const $ = createMockShell({
-      exitCode: 0,
-      stdout: "Custom session.idle Title\n",
-    });
-
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput();
-    input.$ = $;
-    const hooks = await plugin(input);
-
-    await hooks.event!({
-      event: {
-        type: "session.idle",
-        properties: { sessionID: "sess-tpl-1" },
-      },
-    });
-
-    expect(sentContexts).toHaveLength(1);
-    expect(sentContexts[0].title).toBe("Custom session.idle Title");
-    // Message should still be the default since messageCmd is null
-    expect(sentContexts[0].message).toBe(
-      "The agent has finished and is waiting for input.",
-    );
   });
 
   it("should silently ignore unrecognized event types", async () => {
