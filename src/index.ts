@@ -3,6 +3,9 @@
 // Plugin factory
 export { createNotificationPlugin } from "./plugin-factory.js";
 
+// Content utilities
+export { renderTemplate, execCommand, execTemplate } from "./templates.js";
+
 // Types
 export type {
   NotificationBackend,

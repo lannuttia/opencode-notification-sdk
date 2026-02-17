@@ -78,10 +78,10 @@
 
 ## Phase 8: Public API (`src/index.ts`)
 
-- [ ] Export spec-required items: `createNotificationPlugin`, `renderTemplate`, `execCommand`, `execTemplate`, `loadConfig`, `getBackendConfig` (values), `NotificationBackend`, `NotificationContext`, `NotificationEvent`, `EventMetadata`, `NotificationSDKConfig` (types)
+- [x] Export spec-required items: `createNotificationPlugin`, `renderTemplate`, `execCommand`, `execTemplate`, `loadConfig`, `getBackendConfig` (values), `NotificationBackend`, `NotificationContext`, `NotificationEvent`, `EventMetadata`, `NotificationSDKConfig` (types)
 - [x] Do NOT export internal helpers (`NOTIFICATION_EVENTS`, `parseConfigFile`)
-- [ ] Update export verification tests in `tests/index.test.ts`
-- [ ] Ensure tests pass, lint is clean, and package builds cleanly
+- [x] Update export verification tests in `tests/index.test.ts`
+- [x] Ensure tests pass, lint is clean, and package builds cleanly
 
 ## Phase 9: CI Pipeline
 
