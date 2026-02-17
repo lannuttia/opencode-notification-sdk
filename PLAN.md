@@ -34,7 +34,7 @@
 - [x] Implement `getConfigPath(backendConfigKey?)` for computing config file path
 - [x] Handle missing config file gracefully (return all defaults)
 - [x] Handle malformed JSON gracefully (throw descriptive error)
-- [x] Implement `getBackendConfig(config)` that returns `config.backend`
+- [x] Implement `getBackendConfig(config, backendName)` that returns `config.backend`
 - [x] Remove `templates` and `TemplateConfig` from config schema
 - [x] Update tests in `tests/config.test.ts` to remove template references
 - [x] Ensure tests pass and package builds cleanly
@@ -85,7 +85,7 @@
 
 ## Phase 9: CI Pipeline
 
-- [x] Create `.github/workflows/ci.yml` with matrix strategy for Node.js 20, 22, and 24
+- [x] Create `.github/workflows/ci.yml` with Bun 1.x for lint, build, and test
 - [x] Run lint, build, and test steps in CI
 - [x] Add publish step (runs only on latest Node.js version, on tag push)
 
@@ -101,7 +101,8 @@
 
 ## Phase 12: Spec Alignment Fixes
 
-- [ ] Update `getBackendConfig` to accept a generic type parameter `T` and a `backendName` parameter matching the spec signature `getBackendConfig<T>(config, backendName)`
-- [ ] Update tests for `getBackendConfig` to cover new signature
-- [ ] Update CI pipeline (`.github/workflows/ci.yml`) to use Bun 1.x instead of Node.js matrix, per spec: "CI matrix running lint, build, and test against the latest Bun 1.x release"
-- [ ] Ensure tests pass, lint is clean, and package builds cleanly
+- [x] Update `getBackendConfig` to accept a `backendName` parameter matching the spec signature `getBackendConfig(config, backendName)`
+- [x] Update tests for `getBackendConfig` to cover new signature
+- [x] Update CI pipeline (`.github/workflows/ci.yml`) to use Bun 1.x instead of Node.js matrix, per spec: "CI matrix running lint, build, and test against the latest Bun 1.x release"
+- [x] Update README.md and docs to reflect new `getBackendConfig` signature
+- [x] Ensure tests pass, lint is clean, and package builds cleanly
