@@ -143,13 +143,14 @@ Loads the notification SDK configuration from the appropriate config file. Accep
 function loadConfig(backendConfigKey?: string): NotificationSDKConfig;
 ```
 
-### `getBackendConfig(config)`
+### `getBackendConfig(config, backendName)`
 
 Extracts the backend-specific configuration from the full config.
 
 ```typescript
 function getBackendConfig(
-  config: NotificationSDKConfig
+  config: NotificationSDKConfig,
+  backendName: string
 ): Record<string, unknown>;
 ```
 

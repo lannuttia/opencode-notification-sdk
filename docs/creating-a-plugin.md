@@ -203,7 +203,7 @@ import {
 const config = loadConfig("mybackend");
 
 // Extract the backend-specific section (config.backend)
-const backendConfig = getBackendConfig(config);
+const backendConfig = getBackendConfig(config, "mybackend");
 // backendConfig is Record<string, unknown>
 
 const serverUrl = typeof backendConfig.server === "string"
@@ -285,7 +285,7 @@ const webhookBackend: NotificationBackend = {
   async send(context: NotificationContext): Promise<void> {
     // Read backend-specific config
     const config = loadConfig("webhook");
-    const backendConfig = getBackendConfig(config);
+    const backendConfig = getBackendConfig(config, "webhook");
 
     const url = typeof backendConfig.url === "string"
       ? backendConfig.url
