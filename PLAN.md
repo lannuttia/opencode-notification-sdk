@@ -22,10 +22,10 @@
 
 ## Phase 3: Remove Default Notification Content
 
-- [ ] Delete `src/defaults.ts` (the SDK does not provide default titles/messages)
-- [ ] Delete `tests/defaults.test.ts`
-- [ ] Remove all references to `getDefaultTitle` and `getDefaultMessage` from the codebase
-- [ ] Ensure tests pass and package builds cleanly
+- [x] Delete `src/defaults.ts` (the SDK does not provide default titles/messages)
+- [x] Delete `tests/defaults.test.ts`
+- [x] Remove all references to `getDefaultTitle` and `getDefaultMessage` from the codebase
+- [x] Ensure tests pass and package builds cleanly
 
 ## Phase 4: Configuration (`src/config.ts`)
 
