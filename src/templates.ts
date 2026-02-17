@@ -23,6 +23,31 @@ export function renderTemplate(
   return substituteVariables(template, variables);
 }
 
+/**
+ * Execute a shell command and return its trimmed stdout.
+ *
+ * @param $ - The Bun shell from {@link PluginInput}.
+ * @param command - The shell command string to execute.
+ * @returns A promise that resolves to the trimmed stdout if the command
+ *   succeeds (exit code 0).
+ * @throws If the command fails (non-zero exit code) or throws an exception.
+ */
+export async function execCommand(
+  $: PluginInput["$"],
+  command: string,
+): Promise<string> {
+  const result = await $`${{ raw: command }}`.nothrow().quiet();
+  const output = result.text().trim();
+
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `Command failed with exit code ${String(result.exitCode)}: ${command}`,
+    );
+  }
+
+  return output;
+}
+
 function substituteVariables(
   template: string,
   variables: Record<string, string>,

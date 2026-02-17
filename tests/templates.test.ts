@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveField, renderTemplate } from "../src/templates.js";
+import { resolveField, renderTemplate, execCommand } from "../src/templates.js";
 import type { NotificationContext } from "../src/types.js";
 import { createMockShell, createThrowingMockShell, createCapturingMockShell } from "./mock-shell.js";
 
@@ -96,6 +96,24 @@ describe("renderTemplate", () => {
     };
     const result = renderTemplate("No placeholders here", context);
     expect(result).toBe("No placeholders here");
+  });
+});
+
+describe("execCommand", () => {
+  it("should return trimmed stdout when command succeeds (exit code 0)", async () => {
+    const $ = createMockShell({ exitCode: 0, stdout: "  hello world  \n" });
+    const result = await execCommand($, "echo hello world");
+    expect(result).toBe("hello world");
+  });
+
+  it("should reject when command fails (non-zero exit code)", async () => {
+    const $ = createMockShell({ exitCode: 1, stdout: "error output" });
+    await expect(execCommand($, "failing-cmd")).rejects.toThrow();
+  });
+
+  it("should reject when command throws an exception", async () => {
+    const $ = createThrowingMockShell(new Error("command not found"));
+    await expect(execCommand($, "nonexistent-cmd")).rejects.toThrow("command not found");
   });
 });
 
