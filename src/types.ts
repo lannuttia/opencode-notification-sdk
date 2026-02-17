@@ -73,8 +73,9 @@ export interface NotificationBackend {
   /**
    * Deliver a notification.
    *
-   * @param context - The fully resolved notification context including event
-   *   type, title, message, and metadata.
+   * @param context - The notification context including the canonical event
+   *   type and associated metadata. Backends are responsible for deciding
+   *   what content to produce from this context.
    * @returns A promise that resolves when the notification has been sent.
    */
   send(context: NotificationContext): Promise<void>;

@@ -96,5 +96,5 @@
 
 ## Phase 11: JSDoc Docstrings on Public API
 
-- [ ] Update JSDoc docstrings on all exported items to match new API
-- [ ] Ensure tests pass, lint is clean, and package builds cleanly
+- [x] Update JSDoc docstrings on all exported items to match new API
+- [x] Ensure tests pass, lint is clean, and package builds cleanly
