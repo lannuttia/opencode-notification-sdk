@@ -109,13 +109,13 @@ describe("parseConfigFile", () => {
 });
 
 describe("getBackendConfig", () => {
-  it("should return the backend config object directly from config.backend", () => {
+  it("should accept config and backendName parameters and return the backend config", () => {
     const config: NotificationSDKConfig = {
       ...DEFAULT_CONFIG,
       backend: { topic: "my-topic", server: "https://ntfy.sh" },
     };
 
-    const backendConfig = getBackendConfig(config);
+    const backendConfig = getBackendConfig(config, "ntfy");
     expect(backendConfig).toEqual({ topic: "my-topic", server: "https://ntfy.sh" });
   });
 
@@ -125,7 +125,11 @@ describe("getBackendConfig", () => {
       backend: {},
     };
 
-    const result = getBackendConfig(config);
+    const result = getBackendConfig(config, "ntfy");
     expect(result).toEqual({});
+  });
+
+  it("should have a function length of 2 (config and backendName parameters)", () => {
+    expect(getBackendConfig.length).toBe(2);
   });
 });

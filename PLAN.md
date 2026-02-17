@@ -98,3 +98,10 @@
 
 - [x] Update JSDoc docstrings on all exported items to match new API
 - [x] Ensure tests pass, lint is clean, and package builds cleanly
+
+## Phase 12: Spec Alignment Fixes
+
+- [ ] Update `getBackendConfig` to accept a generic type parameter `T` and a `backendName` parameter matching the spec signature `getBackendConfig<T>(config, backendName)`
+- [ ] Update tests for `getBackendConfig` to cover new signature
+- [ ] Update CI pipeline (`.github/workflows/ci.yml`) to use Bun 1.x instead of Node.js matrix, per spec: "CI matrix running lint, build, and test against the latest Bun 1.x release"
+- [ ] Ensure tests pass, lint is clean, and package builds cleanly

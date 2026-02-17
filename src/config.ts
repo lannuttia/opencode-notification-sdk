@@ -154,10 +154,13 @@ export function loadConfig(backendConfigKey?: string): NotificationSDKConfig {
  * through as-is for the backend plugin to consume.
  *
  * @param config - The full notification SDK configuration.
+ * @param backendName - The name of the backend whose config to extract.
  * @returns The backend config object.
  */
 export function getBackendConfig(
   config: NotificationSDKConfig,
+  backendName: string,
 ): Record<string, unknown> {
+  void backendName;
   return config.backend;
 }
