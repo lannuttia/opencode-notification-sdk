@@ -246,4 +246,4 @@ bun run build
 
 ## License
 
-ISC
+MIT
