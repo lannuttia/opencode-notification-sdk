@@ -11,7 +11,6 @@ const DEFAULT_CONFIG: NotificationSDKConfig = {
     "session.error": { enabled: true },
     "permission.asked": { enabled: true },
   },
-  templates: null,
   backend: {},
 };
 
@@ -23,7 +22,6 @@ describe("loadConfig", () => {
     const config = loadConfig();
     expect(config).toHaveProperty("enabled");
     expect(config).toHaveProperty("events");
-    expect(config).toHaveProperty("templates");
     expect(config).toHaveProperty("backend");
     expect(typeof config.enabled).toBe("boolean");
     // Should NOT have backends (plural) or subagentNotifications
@@ -69,12 +67,6 @@ describe("parseConfigFile", () => {
         "session.error": { enabled: true },
         "permission.asked": { enabled: false },
       },
-      templates: {
-        "session.idle": {
-          titleCmd: "echo 'Done'",
-          messageCmd: null,
-        },
-      },
       backend: {
         topic: "my-topic",
         server: "https://ntfy.sh",
@@ -96,7 +88,6 @@ describe("parseConfigFile", () => {
     expect(config.events["session.idle"].enabled).toBe(true);
     expect(config.events["session.error"].enabled).toBe(true);
     expect(config.events["permission.asked"].enabled).toBe(true);
-    expect(config.templates).toBeNull();
     expect(config.backend).toEqual({});
     // Should NOT have backends (plural) or subagentNotifications
     expect(config).not.toHaveProperty("backends");

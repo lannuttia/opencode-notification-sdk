@@ -35,9 +35,9 @@
 - [x] Handle missing config file gracefully (return all defaults)
 - [x] Handle malformed JSON gracefully (throw descriptive error)
 - [x] Implement `getBackendConfig(config)` that returns `config.backend`
-- [ ] Remove `templates` and `TemplateConfig` from config schema
-- [ ] Update tests in `tests/config.test.ts` to remove template references
-- [ ] Ensure tests pass and package builds cleanly
+- [x] Remove `templates` and `TemplateConfig` from config schema
+- [x] Update tests in `tests/config.test.ts` to remove template references
+- [x] Ensure tests pass and package builds cleanly
 
 ## Phase 5: Content Utilities (`src/templates.ts`)
 

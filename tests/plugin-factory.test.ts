@@ -17,7 +17,6 @@ function createDefaultTestConfig(): NotificationSDKConfig {
       "session.error": { enabled: true },
       "permission.asked": { enabled: true },
     },
-    templates: null,
     backend: {},
   };
 }
