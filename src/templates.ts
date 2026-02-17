@@ -1,4 +1,27 @@
 import type { PluginInput } from "@opencode-ai/plugin";
+import type { NotificationContext } from "./types.js";
+import { buildTemplateVariables } from "./events.js";
+
+/**
+ * Pure, synchronous string interpolation of `{var_name}` placeholders
+ * from a {@link NotificationContext}.
+ *
+ * Substitutes all `{var_name}` placeholders with the corresponding values
+ * derived from the context. Unrecognized variable names are substituted
+ * with empty strings. Performs no I/O, no shell execution, and has no
+ * side effects.
+ *
+ * @param template - A template string containing `{var_name}` placeholders.
+ * @param context - The notification context from which to derive variable values.
+ * @returns The resulting string with all placeholders substituted.
+ */
+export function renderTemplate(
+  template: string,
+  context: NotificationContext,
+): string {
+  const variables = buildTemplateVariables(context.event, context.metadata);
+  return substituteVariables(template, variables);
+}
 
 function substituteVariables(
   template: string,
