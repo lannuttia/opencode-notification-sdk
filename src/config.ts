@@ -57,12 +57,6 @@ function createDefaultConfig(): NotificationSDKConfig {
   };
 }
 
-const NOTIFICATION_EVENT_SET: Set<string> = new Set(NOTIFICATION_EVENTS);
-
-function isNotificationEvent(key: string): key is NotificationEvent {
-  return NOTIFICATION_EVENT_SET.has(key);
-}
-
 /**
  * Parse a JSON config string into a validated {@link NotificationSDKConfig}.
  *
@@ -92,10 +86,7 @@ export function parseConfigFile(content: string): NotificationSDKConfig {
 
   const events = { ...defaults.events };
   if (isRecord(parsed.events)) {
-    for (const key of Object.keys(events)) {
-      if (!isNotificationEvent(key)) {
-        continue;
-      }
+    for (const key of NOTIFICATION_EVENTS) {
       const eventVal = parsed.events[key];
       if (isRecord(eventVal) && typeof eventVal.enabled === "boolean") {
         events[key] = {
