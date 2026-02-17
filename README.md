@@ -6,8 +6,7 @@ A TypeScript SDK that provides a standard notification decision engine for [Open
 
 - **Event filtering** -- determines which OpenCode events should trigger notifications
 - **Subagent suppression** -- silently suppresses notifications from sub-agent (child) sessions
-- **Shell command templates** -- customizable notification titles and messages via shell commands with `{var}` substitution
-- **Default notification content** -- sensible defaults for titles and messages per event type
+- **Content utilities** -- composable functions for producing dynamic notification content: `renderTemplate()`, `execCommand()`, `execTemplate()`
 
 ## Supported Events
 
@@ -41,7 +40,7 @@ import { createNotificationPlugin } from "opencode-notification-sdk";
 
 const myBackend: NotificationBackend = {
   async send(context: NotificationContext): Promise<void> {
-    console.log(`[${context.event}] ${context.title}: ${context.message}`);
+    console.log(`[${context.event}] ${context.metadata.projectName}`);
   },
 };
 
@@ -52,7 +51,7 @@ const plugin = createNotificationPlugin(myBackend, {
 export default plugin;
 ```
 
-That's it. The SDK handles event filtering, subagent suppression, and content resolution. Your backend only delivers the notification.
+That's it. The SDK handles event filtering and subagent suppression. Your backend decides what content to produce and how to deliver it.
 
 ## Configuration
 
@@ -64,7 +63,7 @@ Each backend plugin has its own config file. The config file path is determined 
 
 For example, a plugin with `backendConfigKey: "ntfy"` reads from `~/.config/opencode/notification-ntfy.json`. If no `backendConfigKey` is provided, the SDK falls back to `~/.config/opencode/notification.json`.
 
-When the config file does not exist, all defaults are used (everything enabled, no templates, empty backend config).
+When the config file does not exist, all defaults are used (everything enabled, empty backend config).
 
 ### Config File Schema
 
@@ -75,12 +74,6 @@ When the config file does not exist, all defaults are used (everything enabled, 
     "session.idle": { "enabled": true },
     "session.error": { "enabled": true },
     "permission.asked": { "enabled": true }
-  },
-  "templates": {
-    "session.idle": {
-      "titleCmd": "echo 'Custom Title'",
-      "messageCmd": null
-    }
   },
   "backend": {
     "topic": "my-topic",
@@ -96,34 +89,35 @@ When the config file does not exist, all defaults are used (everything enabled, 
 | `enabled` | `boolean` | `true` | Global kill switch for all notifications |
 | `events` | `object` | (all enabled) | Per-event enable/disable toggles |
 | `events.<type>.enabled` | `boolean` | `true` | Whether this event type triggers notifications |
-| `templates` | `object \| null` | `null` | Per-event shell command templates |
-| `templates.<type>.titleCmd` | `string \| null` | `null` | Shell command to generate notification title |
-| `templates.<type>.messageCmd` | `string \| null` | `null` | Shell command to generate notification message |
 | `backend` | `object` | `{}` | Backend-specific configuration for this plugin |
 
-### Template Variables
+### Content Utilities
 
-Shell command templates support `{var_name}` substitution. Available variables:
+The SDK provides three composable functions for producing dynamic notification content. Backends call these as needed:
 
-| Variable | Available In | Description |
+#### `renderTemplate(template, context)`
+
+Pure, synchronous string interpolation. Substitutes `{var_name}` placeholders with values from the `NotificationContext`.
+
+#### `execCommand($, command)`
+
+Executes a shell command via the Bun `$` shell and returns trimmed stdout. Rejects on failure.
+
+#### `execTemplate($, template, context)`
+
+Combines `renderTemplate()` and `execCommand()`: renders placeholders, then executes the resulting command.
+
+#### Template Variables
+
+| Variable | Source | Description |
 |---|---|---|
-| `{event}` | All events | The event type string (e.g., `session.idle`) |
-| `{time}` | All events | ISO 8601 timestamp |
-| `{project}` | All events | Project directory name (basename) |
-| `{session_id}` | All events | The session ID (empty string if unavailable) |
-| `{error}` | `session.error` only | The error message |
-| `{permission_type}` | `permission.asked` only | The permission type |
-| `{permission_patterns}` | `permission.asked` only | Comma-separated list of patterns |
-
-### Default Notification Content
-
-When no shell command template is configured, the SDK provides these defaults:
-
-| Event | Default Title | Default Message |
-|---|---|---|
-| `session.idle` | Agent Idle | The agent has finished and is waiting for input. |
-| `session.error` | Agent Error | An error occurred. Check the session for details. |
-| `permission.asked` | Permission Asked | The agent needs permission to continue. |
+| `{event}` | `context.event` | The event type string (e.g., `session.idle`) |
+| `{time}` | `context.metadata.timestamp` | ISO 8601 timestamp |
+| `{project}` | `context.metadata.projectName` | Project directory name (basename) |
+| `{session_id}` | `context.metadata.sessionId` | The session ID (empty string if unavailable) |
+| `{error}` | `context.metadata.error` | The error message (empty string if not present) |
+| `{permission_type}` | `context.metadata.permissionType` | The permission type (empty string if not present) |
+| `{permission_patterns}` | `context.metadata.permissionPatterns` | Comma-separated list of patterns (empty string if not present) |
 
 ## API Reference
 
@@ -159,6 +153,30 @@ function getBackendConfig(
 ): Record<string, unknown>;
 ```
 
+### `renderTemplate(template, context)`
+
+Pure, synchronous string interpolation of `{var_name}` placeholders from a `NotificationContext`.
+
+```typescript
+function renderTemplate(template: string, context: NotificationContext): string;
+```
+
+### `execCommand($, command)`
+
+Executes a shell command string and returns its trimmed stdout.
+
+```typescript
+function execCommand($: PluginInput["$"], command: string): Promise<string>;
+```
+
+### `execTemplate($, template, context)`
+
+Renders template variables into a command string, executes it, and returns the stdout.
+
+```typescript
+function execTemplate($: PluginInput["$"], template: string, context: NotificationContext): Promise<string>;
+```
+
 ### Types
 
 ```typescript
@@ -168,8 +186,6 @@ type NotificationEvent = "session.idle" | "session.error" | "permission.asked";
 // Context passed to backend.send()
 interface NotificationContext {
   event: NotificationEvent;
-  title: string;
-  message: string;
   metadata: EventMetadata;
 }
 
@@ -192,7 +208,6 @@ interface NotificationBackend {
 interface NotificationSDKConfig {
   enabled: boolean;
   events: Record<NotificationEvent, { enabled: boolean }>;
-  templates: Record<string, { titleCmd: string | null; messageCmd: string | null }> | null;
   backend: Record<string, unknown>;
 }
 ```
