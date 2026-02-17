@@ -91,8 +91,8 @@
 
 ## Phase 10: Documentation
 
-- [ ] Update `docs/creating-a-plugin.md` to reflect new API (no title/message on context, content utilities instead of shell templates)
-- [ ] Update `README.md` to reflect new API (no title/message, content utilities, no templates in config)
+- [x] Update `docs/creating-a-plugin.md` to reflect new API (no title/message on context, content utilities instead of shell templates)
+- [x] Update `README.md` to reflect new API (no title/message, content utilities, no templates in config)
 
 ## Phase 11: JSDoc Docstrings on Public API
 

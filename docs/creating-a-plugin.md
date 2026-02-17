@@ -8,18 +8,17 @@ The `opencode-notification-sdk` handles all notification decision logic:
 
 - **Event filtering** -- determining which OpenCode plugin events should trigger notifications
 - **Subagent suppression** -- silently suppressing notifications from sub-agent (child) sessions for `session.idle` and `session.error` events
-- **Shell command templates** -- user-customizable notification titles and messages via shell commands
-- **Default content** -- sensible default titles and messages for every event type
+- **Content utilities** -- composable functions for producing dynamic notification content: `renderTemplate()`, `execCommand()`, `execTemplate()`
 
-Your backend plugin only needs to implement a single method: `send()`. The SDK calls your `send()` method after all filtering and content resolution is complete. You receive a fully prepared `NotificationContext` with the event type, title, message, and metadata -- all you need to do is deliver it.
+Your backend plugin only needs to implement a single method: `send()`. The SDK calls your `send()` method after all filtering is complete. You receive a `NotificationContext` with the event type and metadata -- your backend decides what content to produce and how to deliver it.
 
 ## Prerequisites
 
 Install the SDK and the OpenCode plugin types:
 
 ```bash
-npm install opencode-notification-sdk
-npm install --save-dev @opencode-ai/plugin
+bun add opencode-notification-sdk
+bun add -d @opencode-ai/plugin
 ```
 
 Your `package.json` should list `@opencode-ai/plugin` as a peer dependency:
@@ -51,14 +50,12 @@ const myBackend: NotificationBackend = {
 
 ### The `NotificationContext` object
 
-The `context` parameter passed to `send()` contains everything you need:
+The `context` parameter passed to `send()` contains the event type and metadata:
 
 ```typescript
 interface NotificationContext {
   event: NotificationEvent;   // "session.idle", "session.error", or "permission.asked"
-  title: string;              // Resolved title (from template or default)
-  message: string;            // Resolved message (from template or default)
-  metadata: EventMetadata;    // Additional event metadata
+  metadata: EventMetadata;    // Event metadata (session ID, project name, etc.)
 }
 
 interface EventMetadata {
@@ -71,19 +68,86 @@ interface EventMetadata {
 }
 ```
 
+The SDK does not prescribe what fields a notification must contain (e.g., title, message, body). Your backend decides what content to produce. You can use the content utilities to produce formatted strings from the context data.
+
+### Using content utilities
+
+The SDK provides three composable functions for producing dynamic notification content:
+
+#### `renderTemplate(template, context)`
+
+Pure, synchronous string interpolation. Substitutes `{var_name}` placeholders with values derived from the `NotificationContext`:
+
+```typescript
+import { renderTemplate } from "opencode-notification-sdk";
+import type { NotificationContext } from "opencode-notification-sdk";
+
+const myBackend: NotificationBackend = {
+  async send(context: NotificationContext): Promise<void> {
+    const title = renderTemplate("OpenCode: {event} in {project}", context);
+    const message = renderTemplate("Session {session_id} at {time}", context);
+
+    // Use title and message in your notification delivery...
+  },
+};
+```
+
+Available template variables:
+
+| Variable | Source | Description |
+|---|---|---|
+| `{event}` | `context.event` | The event type string (e.g., `session.idle`) |
+| `{time}` | `context.metadata.timestamp` | ISO 8601 timestamp |
+| `{project}` | `context.metadata.projectName` | Project directory name |
+| `{session_id}` | `context.metadata.sessionId` | The session ID |
+| `{error}` | `context.metadata.error` | Error message (empty string if not present) |
+| `{permission_type}` | `context.metadata.permissionType` | Permission type (empty string if not present) |
+| `{permission_patterns}` | `context.metadata.permissionPatterns` | Comma-separated patterns (empty string if not present) |
+
+Unrecognized variable names are substituted with empty strings.
+
+#### `execCommand($, command)`
+
+Executes a shell command via the Bun `$` shell and returns trimmed stdout. Rejects on non-zero exit codes:
+
+```typescript
+import { execCommand } from "opencode-notification-sdk";
+
+// In a context where you have access to the PluginInput's $ shell:
+const hostname = await execCommand($, "hostname");
+```
+
+#### `execTemplate($, template, context)`
+
+Combines `renderTemplate()` and `execCommand()`: renders `{var_name}` placeholders first, then executes the resulting command:
+
+```typescript
+import { execTemplate } from "opencode-notification-sdk";
+
+const message = await execTemplate(
+  $,
+  "echo 'Alert: {event} in project {project}'",
+  context,
+);
+```
+
 ### Example: HTTP webhook backend
 
 ```typescript
 import type { NotificationBackend, NotificationContext } from "opencode-notification-sdk";
+import { renderTemplate } from "opencode-notification-sdk";
 
 const webhookBackend: NotificationBackend = {
   async send(context: NotificationContext): Promise<void> {
+    const title = renderTemplate("OpenCode: {event}", context);
+    const message = renderTemplate("{project} - session {session_id}", context);
+
     await fetch("https://hooks.example.com/notify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        title: context.title,
-        message: context.message,
+        title,
+        message,
         event: context.event,
         project: context.metadata.projectName,
         timestamp: context.metadata.timestamp,
@@ -168,12 +232,6 @@ For example, if your plugin uses `backendConfigKey: "webhook"`, users create `~/
     "session.error": { "enabled": true },
     "permission.asked": { "enabled": true }
   },
-  "templates": {
-    "session.idle": {
-      "titleCmd": "echo 'Custom Title'",
-      "messageCmd": null
-    }
-  },
   "backend": {
     "server": "https://hooks.example.com",
     "apiKey": "secret-key"
@@ -188,12 +246,9 @@ For example, if your plugin uses `backendConfigKey: "webhook"`, users create `~/
 | `enabled` | `boolean` | `true` | Global kill switch for all notifications |
 | `events` | `object` | (all enabled) | Per-event enable/disable toggles |
 | `events.<type>.enabled` | `boolean` | `true` | Per-event enable/disable toggle |
-| `templates` | `object \| null` | `null` | Per-event shell command templates |
-| `templates.<type>.titleCmd` | `string \| null` | `null` | Shell command to generate the notification title |
-| `templates.<type>.messageCmd` | `string \| null` | `null` | Shell command to generate the notification message |
 | `backend` | `object` | `{}` | Backend-specific configuration (your plugin reads this) |
 
-When the config file does not exist, all defaults are used (everything enabled, no templates, empty backend config).
+When the config file does not exist, all defaults are used (everything enabled, empty backend config).
 
 ### Adding backend-specific config
 
@@ -218,7 +273,12 @@ Here is a full, minimal working example of a webhook notification plugin:
 
 ```typescript
 import type { NotificationBackend, NotificationContext } from "opencode-notification-sdk";
-import { createNotificationPlugin, loadConfig, getBackendConfig } from "opencode-notification-sdk";
+import {
+  createNotificationPlugin,
+  loadConfig,
+  getBackendConfig,
+  renderTemplate,
+} from "opencode-notification-sdk";
 
 // 1. Define the backend
 const webhookBackend: NotificationBackend = {
@@ -235,6 +295,13 @@ const webhookBackend: NotificationBackend = {
       ? backendConfig.apiKey
       : "";
 
+    // Use content utilities to produce notification content
+    const title = renderTemplate("OpenCode: {event}", context);
+    const message = renderTemplate(
+      "Project {project} - session {session_id} at {time}",
+      context,
+    );
+
     // Send the notification
     const response = await fetch(url, {
       method: "POST",
@@ -243,8 +310,8 @@ const webhookBackend: NotificationBackend = {
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       },
       body: JSON.stringify({
-        title: context.title,
-        message: context.message,
+        title,
+        message,
         event: context.event,
         project: context.metadata.projectName,
         session: context.metadata.sessionId,
@@ -290,7 +357,7 @@ export default plugin;
 You can test your backend implementation in isolation without running OpenCode. Construct `NotificationContext` objects directly and pass them to your `send()` method:
 
 ```typescript
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import type { NotificationContext } from "opencode-notification-sdk";
 
 // Import your backend
@@ -298,19 +365,9 @@ import { webhookBackend } from "./my-backend.js";
 
 describe("webhook backend", () => {
   it("should POST the notification to the configured URL", async () => {
-    // Mock fetch
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-    });
-    globalThis.fetch = mockFetch;
-
     // Create a test context
     const context: NotificationContext = {
       event: "session.idle",
-      title: "Agent Idle",
-      message: "The agent has finished and is waiting for input.",
       metadata: {
         sessionId: "test-session-123",
         projectName: "my-project",
@@ -318,20 +375,14 @@ describe("webhook backend", () => {
       },
     };
 
+    // Call send() and verify your backend's behavior
+    // (use network-level interception like MSW rather than vi.mock/vi.spyOn)
     await webhookBackend.send(context);
-
-    expect(mockFetch).toHaveBeenCalledOnce();
-    expect(mockFetch.mock.calls[0][0]).toBe("https://hooks.example.com/notify");
   });
 
   it("should include error metadata for session.error events", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: "OK" });
-    globalThis.fetch = mockFetch;
-
     const context: NotificationContext = {
       event: "session.error",
-      title: "Agent Error",
-      message: "An error occurred. Check the session for details.",
       metadata: {
         sessionId: "err-session-456",
         projectName: "my-project",
@@ -342,9 +393,7 @@ describe("webhook backend", () => {
 
     await webhookBackend.send(context);
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(body.error).toBe("Connection timeout");
-    expect(body.event).toBe("session.error");
+    // Verify your backend handled the error metadata correctly
   });
 });
 ```
@@ -352,7 +401,7 @@ describe("webhook backend", () => {
 ### Testing tips summary
 
 - **Test `send()` directly** -- you don't need the full plugin lifecycle to test your delivery logic.
-- **Mock external services** -- use `vi.fn()` or similar to mock HTTP calls, API clients, or desktop notification APIs.
+- **Use network-level interception** -- libraries like [MSW](https://mswjs.io/) let you intercept HTTP requests at the network boundary without coupling tests to implementation details. Avoid `vi.mock()`, `vi.spyOn()`, or `vi.fn()` for mocking production dependencies.
 - **Test all event types** -- construct contexts for each `NotificationEvent` type (`session.idle`, `session.error`, `permission.asked`) to verify your backend handles them all correctly.
 - **Test error scenarios** -- verify your backend handles network failures, auth errors, and invalid responses gracefully.
 - **Use the SDK's types** -- import `NotificationContext` and `NotificationEvent` from the SDK to ensure type safety in your tests.

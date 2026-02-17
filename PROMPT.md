@@ -22,7 +22,7 @@ If there is a discrepancy between PLAN.md and this prompt, always update PLAN.md
 
 - **No type casting.** Never use `as`, `as any`, `as unknown`, or similar type assertions. If the types don't align, fix the type definitions or use type guards, generics, or proper type narrowing instead. This is enforced by ESLint via the `@typescript-eslint/consistent-type-assertions` rule with `assertionStyle: "never"`.
 - **Prefer constants.** Use `const` variables instead of `let` wherever the value is not reassigned. For object literals, arrays, and other compound values that should be deeply immutable, use `as const` assertions (const assertions) to narrow types to their literal values. This improves type safety, communicates intent, and prevents accidental mutation.
-- **Linting is required.** All source and test code must pass `npm run lint` before committing. The linter uses ESLint with typescript-eslint and is configured in `eslint.config.js`.
+- **Linting is required.** All source and test code must pass `bun run lint` before committing. The linter uses ESLint with typescript-eslint and is configured in `eslint.config.js`.
 - **Prefer immutability and pure functions.** Favor immutable data and pure functions over mutable state and side effects. Avoid mutating function arguments or shared state. When a function needs to produce a modified value, return a new value rather than mutating the input. Side effects (I/O, network calls, filesystem access) should be pushed to the edges of the system so that core logic remains pure and easy to test.
 - **No implementation-coupled test doubles.** Tests must not use mocks, spies, stubs, monkey-patching, or module patching that couple the test to the internal implementation of the unit under test. This includes -- but is not limited to -- `vi.mock()`, `vi.spyOn()`, `vi.fn()`, `vi.stubGlobal()`, and manual mock files. Design production code so that dependencies can be supplied directly (e.g., via function parameters or options objects) rather than requiring interception at the module or global level. Network-level interception libraries like MSW are permitted because they operate at the HTTP boundary without coupling tests to implementation details.
 
@@ -30,7 +30,7 @@ If there is a discrepancy between PLAN.md and this prompt, always update PLAN.md
 
 ### Overview
 
-The SDK is a standalone npm package that backend notification plugins depend on. It handles:
+The SDK is a standalone package (published to npm) that backend notification plugins depend on. It handles:
 
 1. **Event filtering** -- determining which OpenCode plugin events should trigger notifications
 2. **Subagent suppression** -- silently suppressing notifications from sub-agent (child) sessions
@@ -263,6 +263,7 @@ The SDK exports the following from `src/index.ts`:
 
 ### Tech Stack
 
+- Bun as the runtime and package manager
 - TypeScript with strict mode
 - ESLint with typescript-eslint for linting
 - Vitest for testing
@@ -316,9 +317,12 @@ The project must include documentation (in a `docs/creating-a-plugin.md` file) t
 6. **Complete example** -- a full, minimal working example of a custom notification plugin (e.g., a simple webhook-based notifier) from start to finish, including the plugin entry point file that exports the plugin. The example should demonstrate using the content utilities to produce notification content.
 7. **Testing tips** -- guidance on how plugin authors can test their backend implementation in isolation by constructing `NotificationContext` objects directly
 
-### Node.js Version Support
+### Runtime
 
-The SDK must support all currently supported versions of Node.js (20, 22, and 24). This is enforced via:
+This is a Bun project. Use `bun` as the package manager and runtime for all operations (installing dependencies, running scripts, executing tests, etc.). Do not use `npm`, `yarn`, or `node` directly.
 
-1. `engines.node` field in `package.json` set to `>=20`
-2. CI matrix running lint, build, and test against Node.js 20, 22, and 24
+### Bun Version Support
+
+The SDK must support Bun 1.x. This is enforced via:
+
+1. CI matrix running lint, build, and test against the latest Bun 1.x release

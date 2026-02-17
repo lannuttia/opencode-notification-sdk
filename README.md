@@ -19,16 +19,14 @@ A TypeScript SDK that provides a standard notification decision engine for [Open
 ## Installation
 
 ```bash
-npm install opencode-notification-sdk
+bun add opencode-notification-sdk
 ```
 
 `@opencode-ai/plugin` is a peer dependency and must be available in the consuming project:
 
 ```bash
-npm install --save-dev @opencode-ai/plugin
+bun add -d @opencode-ai/plugin
 ```
-
-**Node.js version:** `>=20` (supports Node.js 20, 22, and 24)
 
 ## Quick Start
 
@@ -36,11 +34,13 @@ Create a notification backend and wire it into an OpenCode plugin:
 
 ```typescript
 import type { NotificationBackend, NotificationContext } from "opencode-notification-sdk";
-import { createNotificationPlugin } from "opencode-notification-sdk";
+import { createNotificationPlugin, renderTemplate } from "opencode-notification-sdk";
 
 const myBackend: NotificationBackend = {
   async send(context: NotificationContext): Promise<void> {
-    console.log(`[${context.event}] ${context.metadata.projectName}`);
+    const title = renderTemplate("OpenCode: {event}", context);
+    const message = renderTemplate("{project} - {session_id}", context);
+    console.log(`[${title}] ${message}`);
   },
 };
 
@@ -218,6 +218,7 @@ See [docs/creating-a-plugin.md](docs/creating-a-plugin.md) for a comprehensive g
 
 - Implementing the `NotificationBackend` interface
 - Using `createNotificationPlugin()` with backend-specific configuration
+- Using content utilities (`renderTemplate()`, `execCommand()`, `execTemplate()`) to produce notification content
 - A complete working example (webhook notifier)
 - Testing tips
 
@@ -225,16 +226,16 @@ See [docs/creating-a-plugin.md](docs/creating-a-plugin.md) for a comprehensive g
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
 # Run tests
-npm test
+bun test
 
 # Lint
-npm run lint
+bun run lint
 
 # Build
-npm run build
+bun run build
 ```
 
 ## License
