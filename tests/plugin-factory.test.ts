@@ -584,6 +584,25 @@ describe("createNotificationPlugin", () => {
     expect(sentContexts[0].metadata.permissionPatterns).toEqual(["rm -rf /tmp/*"]);
   });
 
+  it("should derive projectName from the basename of the input directory", async () => {
+    const { backend, sentContexts } = createCapturingBackend();
+    const config = createDefaultTestConfig();
+
+    const plugin = createNotificationPlugin(backend, { config });
+    const input = createMockPluginInput({ directory: "/home/user/projects/my-awesome-project" });
+    const hooks = await plugin(input);
+
+    await hooks.event!({
+      event: {
+        type: "session.idle",
+        properties: { sessionID: "sess-dir-1" },
+      },
+    });
+
+    expect(sentContexts).toHaveLength(1);
+    expect(sentContexts[0].metadata.projectName).toBe("my-awesome-project");
+  });
+
   it("should skip subagent check when session.error has empty sessionID and still send", async () => {
     const { backend, sentContexts } = createCapturingBackend();
     const config = createDefaultTestConfig();
