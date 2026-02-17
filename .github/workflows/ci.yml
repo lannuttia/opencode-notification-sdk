@@ -28,7 +28,14 @@ jobs:
         run: bun run build
 
       - name: Test
-        run: bun run test
+        run: bun run test:coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: coverage/
+          fail_ci_if_error: true
 
   publish:
     needs: ci
