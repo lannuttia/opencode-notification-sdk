@@ -97,6 +97,32 @@ describe("renderTemplate", () => {
     const result = renderTemplate("No placeholders here", context);
     expect(result).toBe("No placeholders here");
   });
+
+  it("should substitute multiple occurrences of the same placeholder", () => {
+    const context: NotificationContext = {
+      event: "session.idle",
+      metadata: {
+        sessionId: "sess-1",
+        projectName: "my-project",
+        timestamp: "2026-02-16T00:00:00Z",
+      },
+    };
+    const result = renderTemplate("{event} - {event} - {project} - {project}", context);
+    expect(result).toBe("session.idle - session.idle - my-project - my-project");
+  });
+
+  it("should return an empty string when given an empty template", () => {
+    const context: NotificationContext = {
+      event: "session.idle",
+      metadata: {
+        sessionId: "sess-1",
+        projectName: "my-project",
+        timestamp: "2026-02-16T00:00:00Z",
+      },
+    };
+    const result = renderTemplate("", context);
+    expect(result).toBe("");
+  });
 });
 
 describe("execCommand", () => {
