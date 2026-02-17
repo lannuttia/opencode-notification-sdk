@@ -176,6 +176,25 @@ describe("parseConfigFile", () => {
     expect(config.backend).toEqual({});
   });
 
+  it("should ignore unrecognized event keys and preserve defaults for known events", () => {
+    const config = parseConfigFile(
+      JSON.stringify({
+        events: {
+          "session.idle": { enabled: false },
+          "foo.bar": { enabled: true },
+          "unknown.event": { enabled: false },
+        },
+      }),
+    );
+    // Known event should be updated
+    expect(config.events["session.idle"].enabled).toBe(false);
+    // Other known events should retain defaults
+    expect(config.events["session.error"].enabled).toBe(true);
+    expect(config.events["permission.asked"].enabled).toBe(true);
+    // Unrecognized keys should NOT appear in the result
+    expect("foo.bar" in config.events).toBe(false);
+    expect("unknown.event" in config.events).toBe(false);
+  });
 });
 
 describe("getBackendConfig", () => {
