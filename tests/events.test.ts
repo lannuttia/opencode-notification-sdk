@@ -129,6 +129,36 @@ describe("extractSessionErrorMetadata", () => {
     expect(metadata.sessionId).toBe("sess-789");
     expect(metadata.error).toBeUndefined();
   });
+
+  it("should not extract error when error is a plain string", () => {
+    const metadata = extractSessionErrorMetadata(
+      { sessionID: "sess-str", error: "just a string" },
+      "my-project",
+    );
+
+    expect(metadata.sessionId).toBe("sess-str");
+    expect(metadata.error).toBeUndefined();
+  });
+
+  it("should not extract error when error.data is missing", () => {
+    const metadata = extractSessionErrorMetadata(
+      { sessionID: "sess-nodata", error: { name: "SomeError" } },
+      "my-project",
+    );
+
+    expect(metadata.sessionId).toBe("sess-nodata");
+    expect(metadata.error).toBeUndefined();
+  });
+
+  it("should not extract error when error.data.message is not a string", () => {
+    const metadata = extractSessionErrorMetadata(
+      { sessionID: "sess-badmsg", error: { data: { message: 42 } } },
+      "my-project",
+    );
+
+    expect(metadata.sessionId).toBe("sess-badmsg");
+    expect(metadata.error).toBeUndefined();
+  });
 });
 
 describe("extractPermissionMetadata", () => {
