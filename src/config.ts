@@ -65,7 +65,9 @@ export function substituteString(value: string, configDir: string): string {
   return envSubstituted.replace(/\{file:([^}]+)\}/g, (_match: string, filePath: string): string => {
     const resolvedPath = filePath.startsWith("/")
       ? filePath
-      : join(configDir, filePath);
+      : filePath.startsWith("~")
+        ? join(homedir(), filePath.slice(1))
+        : join(configDir, filePath);
     try {
       return readFileSync(resolvedPath, "utf-8").trim();
     } catch {

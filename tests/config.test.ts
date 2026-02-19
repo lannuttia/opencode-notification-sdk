@@ -226,6 +226,19 @@ describe("substituteString", () => {
       const result = substituteString(`{file:${tokenFile}}`, "/tmp");
       expect(result).toBe("my-secret-token");
     });
+
+    it("should replace {file:~/relative} with trimmed file contents resolved from home directory", () => {
+      const homeRelDir = mkdtempSync(join(homedir(), ".subst-test-"));
+      const homeRelFile = join(homeRelDir, "secret.txt");
+      writeFileSync(homeRelFile, "  home-secret  \n");
+      const relativePath = homeRelDir.slice(homedir().length + 1);
+      try {
+        const result = substituteString(`{file:~/${relativePath}/secret.txt}`, "/tmp");
+        expect(result).toBe("home-secret");
+      } finally {
+        rmSync(homeRelDir, { recursive: true, force: true });
+      }
+    });
   });
 });
 
