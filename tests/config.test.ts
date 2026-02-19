@@ -1,6 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { loadConfig, getBackendConfig, parseConfigFile, getConfigPath, substituteString } from "../src/config.js";
 import type { NotificationSDKConfig } from "../src/config.js";
 
@@ -209,6 +211,21 @@ describe("substituteString", () => {
     delete process.env["NONEXISTENT_TEST_VAR_XYZ"];
     const result = substituteString("prefix-{env:NONEXISTENT_TEST_VAR_XYZ}-suffix", "/tmp");
     expect(result).toBe("prefix--suffix");
+  });
+
+  describe("{file:} substitution", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "subst-test-"));
+    const tokenFile = join(tempDir, "token.txt");
+    writeFileSync(tokenFile, "  my-secret-token  \n");
+
+    afterAll(() => {
+      rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it("should replace {file:/absolute/path} with trimmed file contents", () => {
+      const result = substituteString(`{file:${tokenFile}}`, "/tmp");
+      expect(result).toBe("my-secret-token");
+    });
   });
 });
 

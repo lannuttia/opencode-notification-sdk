@@ -59,9 +59,18 @@ export function getConfigPath(backendConfigKey?: string): string {
  * @returns The string with all placeholders replaced.
  */
 export function substituteString(value: string, configDir: string): string {
-  void configDir;
-  return value.replace(/\{env:([^}]+)\}/g, (_match: string, varName: string): string => {
+  const envSubstituted = value.replace(/\{env:([^}]+)\}/g, (_match: string, varName: string): string => {
     return process.env[varName] ?? "";
+  });
+  return envSubstituted.replace(/\{file:([^}]+)\}/g, (_match: string, filePath: string): string => {
+    const resolvedPath = filePath.startsWith("/")
+      ? filePath
+      : join(configDir, filePath);
+    try {
+      return readFileSync(resolvedPath, "utf-8").trim();
+    } catch {
+      return "";
+    }
   });
 }
 
