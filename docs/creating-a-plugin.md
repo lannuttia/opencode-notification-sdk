@@ -265,6 +265,25 @@ Tell your users to add their backend settings under the `backend` key in the plu
 
 The SDK does not interpret or validate your backend's config section -- it passes it through as-is for your backend to consume.
 
+### Variable substitution
+
+All string values in the config file support two placeholder syntaxes, expanded before validation:
+
+- **`{env:VAR_NAME}`** -- replaced with the value of the corresponding environment variable. If the variable is not set, the placeholder is replaced with an empty string.
+- **`{file:path/to/file}`** -- replaced with the trimmed contents of the specified file. Paths can be absolute (`/`), home-relative (`~`), or relative to the config file's directory. If the file does not exist or cannot be read, the placeholder is replaced with an empty string.
+
+This allows sensitive values (tokens, API keys, etc.) to be externalized from the config file, making it safe to commit to version control:
+
+```json
+{
+  "backend": {
+    "url": "https://hooks.example.com/opencode",
+    "apiKey": "{env:WEBHOOK_API_KEY}",
+    "token": "{file:~/.secrets/webhook-token}"
+  }
+}
+```
+
 ## Complete Example
 
 Here is a full, minimal working example of a webhook notification plugin:

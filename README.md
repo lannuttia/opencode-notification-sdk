@@ -96,6 +96,24 @@ When the config file does not exist, all defaults are used (everything enabled, 
 | `events.<type>.enabled` | `boolean` | `true` | Whether this event type triggers notifications |
 | `backend` | `object` | `{}` | Backend-specific configuration for this plugin |
 
+### Variable Substitution
+
+All string values in the config file support two placeholder syntaxes, expanded before validation:
+
+- **`{env:VAR_NAME}`** -- replaced with the value of the corresponding environment variable. If the variable is not set, the placeholder is replaced with an empty string.
+- **`{file:path/to/file}`** -- replaced with the trimmed contents of the specified file. Paths can be absolute (`/`), home-relative (`~`), or relative to the config file's directory. If the file does not exist or cannot be read, the placeholder is replaced with an empty string.
+
+This allows sensitive values (tokens, topics, etc.) to be externalized from the config file, making the config safe to commit to version control.
+
+```json
+{
+  "backend": {
+    "topic": "{env:NTFY_TOPIC}",
+    "token": "{file:~/.secrets/ntfy-token}"
+  }
+}
+```
+
 ### Content Utilities
 
 The SDK provides three composable functions for producing dynamic notification content. Backends call these as needed:

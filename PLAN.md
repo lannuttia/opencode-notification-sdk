@@ -109,13 +109,13 @@
 
 ## Phase 13: Config Variable Substitution
 
-- [ ] Implement `substituteVariables()` for `{env:VAR_NAME}` placeholders on simple strings
-- [ ] Handle missing environment variables (replace with empty string)
-- [ ] Implement `{file:path/to/file}` substitution with absolute paths
-- [ ] Support home-relative (`~/`) file paths in `{file:...}` placeholders
-- [ ] Support config-dir-relative file paths in `{file:...}` placeholders
-- [ ] Handle missing/unreadable files (replace with empty string)
-- [ ] Apply substitution recursively to all string values in nested objects and arrays
-- [ ] Integrate substitution into `parseConfigFile` (apply before validation)
-- [ ] Update README.md and docs to document variable substitution
-- [ ] Ensure tests pass, lint is clean, and package builds cleanly
+- [x] Implement `substituteString()` for `{env:VAR_NAME}` placeholders on simple strings
+- [x] Handle missing environment variables (replace with empty string)
+- [x] Implement `{file:path/to/file}` substitution with absolute paths
+- [x] Support home-relative (`~/`) file paths in `{file:...}` placeholders
+- [x] Support config-dir-relative file paths in `{file:...}` placeholders
+- [x] Handle missing/unreadable files (replace with empty string)
+- [x] Apply substitution recursively to all string values in nested objects and arrays via `substituteVariables()`
+- [x] Integrate substitution into `parseConfigFile` (apply before validation)
+- [x] Update README.md and docs to document variable substitution
+- [x] Ensure tests pass, lint is clean, and package builds cleanly
