@@ -178,6 +178,18 @@ describe("parseConfigFile", () => {
     expect(config.backend).toEqual({});
   });
 
+  it("should perform variable substitution on string values before validation", () => {
+    process.env["TEST_PARSE_TOPIC"] = "my-ntfy-topic";
+    const fileConfig = {
+      backend: {
+        topic: "{env:TEST_PARSE_TOPIC}",
+      },
+    };
+    const config = parseConfigFile(JSON.stringify(fileConfig), "/tmp");
+    delete process.env["TEST_PARSE_TOPIC"];
+    expect(config.backend.topic).toBe("my-ntfy-topic");
+  });
+
   it("should ignore unrecognized event keys and preserve defaults for known events", () => {
     const config = parseConfigFile(
       JSON.stringify({

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 import { NOTIFICATION_EVENTS, isRecord } from "./types.js";
 import type { NotificationEvent } from "./types.js";
@@ -116,13 +116,17 @@ function createDefaultConfig(): NotificationSDKConfig {
 /**
  * Parse a JSON config string into a validated {@link NotificationSDKConfig}.
  *
- * Applies defaults for any missing fields.
+ * Performs variable substitution (`{env:VAR}` and `{file:path}`) on all
+ * string values before validation, then applies defaults for any missing
+ * fields.
  *
  * @param content - The raw JSON string to parse.
+ * @param configDir - Optional directory of the config file, used to resolve
+ *   relative `{file:}` paths. Defaults to `"."`.
  * @returns The parsed and validated configuration object with defaults applied.
  * @throws {Error} If the JSON is malformed.
  */
-export function parseConfigFile(content: string): NotificationSDKConfig {
+export function parseConfigFile(content: string, configDir: string = "."): NotificationSDKConfig {
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
@@ -135,15 +139,20 @@ export function parseConfigFile(content: string): NotificationSDKConfig {
     throw new Error("Invalid notification config: expected a JSON object");
   }
 
+  const substituted = substituteVariables(parsed, configDir);
+  if (!isRecord(substituted)) {
+    throw new Error("Invalid notification config: expected a JSON object");
+  }
+
   const defaults = createDefaultConfig();
 
   const enabled =
-    typeof parsed.enabled === "boolean" ? parsed.enabled : defaults.enabled;
+    typeof substituted.enabled === "boolean" ? substituted.enabled : defaults.enabled;
 
   const events = { ...defaults.events };
-  if (isRecord(parsed.events)) {
+  if (isRecord(substituted.events)) {
     for (const key of NOTIFICATION_EVENTS) {
-      const eventVal = parsed.events[key];
+      const eventVal = substituted.events[key];
       if (isRecord(eventVal) && typeof eventVal.enabled === "boolean") {
         events[key] = {
           enabled: eventVal.enabled,
@@ -153,8 +162,8 @@ export function parseConfigFile(content: string): NotificationSDKConfig {
   }
 
   let backend: Record<string, unknown> = defaults.backend;
-  if (isRecord(parsed.backend)) {
-    backend = { ...parsed.backend };
+  if (isRecord(substituted.backend)) {
+    backend = { ...substituted.backend };
   }
 
   return {
@@ -185,7 +194,7 @@ export function loadConfig(backendConfigKey?: string): NotificationSDKConfig {
   const configPath = getConfigPath(backendConfigKey);
   try {
     const content = readFileSync(configPath, "utf-8");
-    return parseConfigFile(content);
+    return parseConfigFile(content, dirname(configPath));
   } catch (error: unknown) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       return createDefaultConfig();
