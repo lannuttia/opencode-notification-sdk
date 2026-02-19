@@ -77,9 +77,13 @@ If no `backendConfigKey` is provided, the SDK falls back to `~/.config/opencode/
 The SDK must:
 
 1. Read and parse the plugin's config file on plugin initialization
-2. Validate the config against the expected schema
-3. Provide defaults for all optional fields
-4. Expose a `getBackendConfig<T>(config, backendName)` function that extracts the backend-specific config section
+2. Perform variable substitution on all string values in the parsed config before validation. This follows the same syntax as OpenCode's `opencode.json` variable substitution. Two forms are supported:
+   - `{env:VAR_NAME}` -- replaced with the value of the corresponding environment variable. If the environment variable is not set, the placeholder is replaced with an empty string.
+   - `{file:path/to/file}` -- replaced with the contents of the specified file (trimmed of leading/trailing whitespace). File paths can be absolute (starting with `/`), home-relative (starting with `~`), or relative to the config file's directory. If the file does not exist or cannot be read, the placeholder is replaced with an empty string.
+   Substitution is applied recursively to all string values in the config object (including nested objects and arrays) before any validation or default-filling occurs.
+3. Validate the config against the expected schema
+4. Provide defaults for all optional fields
+5. Expose a `getBackendConfig<T>(config, backendName)` function that extracts the backend-specific config section
 
 #### Config File Schema
 
@@ -124,6 +128,26 @@ And `~/.config/opencode/notification-desktop.json`:
 | `backend` | `object` | `{}` | Backend-specific configuration for this plugin |
 
 When the config file does not exist, all defaults are used (everything enabled, empty backend config).
+
+#### Variable Substitution
+
+All string values in the config file support two placeholder syntaxes, expanded before validation:
+
+- **`{env:VAR_NAME}`** -- replaced with the value of the corresponding environment variable. If the variable is not set, the placeholder is replaced with an empty string.
+- **`{file:path/to/file}`** -- replaced with the trimmed contents of the specified file. Paths can be absolute (`/`), home-relative (`~`), or relative to the config file's directory. If the file does not exist or cannot be read, the placeholder is replaced with an empty string.
+
+This allows sensitive values (tokens, topics, etc.) to be externalized from the config file, making the config safe to commit to version control.
+
+Examples:
+
+```json
+{
+  "backend": {
+    "topic": "{env:NTFY_TOPIC}",
+    "token": "{file:~/.secrets/ntfy-token}"
+  }
+}
+```
 
 ### Content Utilities (`src/templates.ts`)
 

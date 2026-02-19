@@ -45,6 +45,26 @@ export function getConfigPath(backendConfigKey?: string): string {
   return join(homedir(), ".config", "opencode", filename);
 }
 
+/**
+ * Perform variable substitution on a single string value.
+ *
+ * Replaces `{env:VAR_NAME}` placeholders with the corresponding environment
+ * variable value (or empty string if not set), and `{file:path}` placeholders
+ * with the trimmed contents of the specified file (or empty string if
+ * unreadable). File paths may be absolute, home-relative (`~`), or relative
+ * to `configDir`.
+ *
+ * @param value - The string to perform substitutions on.
+ * @param configDir - The directory of the config file, used to resolve relative file paths.
+ * @returns The string with all placeholders replaced.
+ */
+export function substituteString(value: string, configDir: string): string {
+  void configDir;
+  return value.replace(/\{env:([^}]+)\}/g, (_match: string, varName: string): string => {
+    return process.env[varName] ?? "";
+  });
+}
+
 function createDefaultConfig(): NotificationSDKConfig {
   return {
     enabled: true,

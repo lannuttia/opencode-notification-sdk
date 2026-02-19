@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { loadConfig, getBackendConfig, parseConfigFile, getConfigPath } from "../src/config.js";
+import { loadConfig, getBackendConfig, parseConfigFile, getConfigPath, substituteString } from "../src/config.js";
 import type { NotificationSDKConfig } from "../src/config.js";
 
 const DEFAULT_CONFIG: NotificationSDKConfig = {
@@ -194,6 +194,15 @@ describe("parseConfigFile", () => {
     // Unrecognized keys should NOT appear in the result
     expect("foo.bar" in config.events).toBe(false);
     expect("unknown.event" in config.events).toBe(false);
+  });
+});
+
+describe("substituteString", () => {
+  it("should replace {env:VAR_NAME} with the environment variable value", () => {
+    process.env["TEST_SUBST_VAR"] = "hello-world";
+    const result = substituteString("{env:TEST_SUBST_VAR}", "/tmp");
+    delete process.env["TEST_SUBST_VAR"];
+    expect(result).toBe("hello-world");
   });
 });
 
