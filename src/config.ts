@@ -76,6 +76,31 @@ export function substituteString(value: string, configDir: string): string {
   });
 }
 
+/**
+ * Recursively apply variable substitution to all string values in a parsed
+ * JSON structure (objects and arrays). Non-string values are returned as-is.
+ *
+ * @param value - The parsed JSON value to process.
+ * @param configDir - The directory of the config file, used to resolve relative file paths.
+ * @returns A new value with all string placeholders substituted.
+ */
+export function substituteVariables(value: unknown, configDir: string): unknown {
+  if (typeof value === "string") {
+    return substituteString(value, configDir);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item: unknown): unknown => substituteVariables(item, configDir));
+  }
+  if (isRecord(value)) {
+    const result: Record<string, unknown> = {};
+    for (const key of Object.keys(value)) {
+      result[key] = substituteVariables(value[key], configDir);
+    }
+    return result;
+  }
+  return value;
+}
+
 function createDefaultConfig(): NotificationSDKConfig {
   return {
     enabled: true,

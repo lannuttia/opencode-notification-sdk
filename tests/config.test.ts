@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { loadConfig, getBackendConfig, parseConfigFile, getConfigPath, substituteString } from "../src/config.js";
+import { loadConfig, getBackendConfig, parseConfigFile, getConfigPath, substituteString, substituteVariables } from "../src/config.js";
 import type { NotificationSDKConfig } from "../src/config.js";
 
 const DEFAULT_CONFIG: NotificationSDKConfig = {
@@ -248,6 +248,32 @@ describe("substituteString", () => {
       } finally {
         rmSync(homeRelDir, { recursive: true, force: true });
       }
+    });
+  });
+});
+
+describe("substituteVariables", () => {
+  it("should recursively substitute {env:VAR} in nested objects and arrays", () => {
+    process.env["TEST_SUBST_NESTED"] = "resolved-value";
+    const input = {
+      topLevel: "{env:TEST_SUBST_NESTED}",
+      nested: {
+        deep: "{env:TEST_SUBST_NESTED}",
+        number: 42,
+        bool: true,
+      },
+      list: ["{env:TEST_SUBST_NESTED}", "plain", 123],
+    };
+    const result = substituteVariables(input, "/tmp");
+    delete process.env["TEST_SUBST_NESTED"];
+    expect(result).toEqual({
+      topLevel: "resolved-value",
+      nested: {
+        deep: "resolved-value",
+        number: 42,
+        bool: true,
+      },
+      list: ["resolved-value", "plain", 123],
     });
   });
 });
