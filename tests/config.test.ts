@@ -227,6 +227,11 @@ describe("substituteString", () => {
       expect(result).toBe("my-secret-token");
     });
 
+    it("should replace {file:relative} with trimmed file contents resolved from configDir", () => {
+      const result = substituteString("{file:token.txt}", tempDir);
+      expect(result).toBe("my-secret-token");
+    });
+
     it("should replace {file:~/relative} with trimmed file contents resolved from home directory", () => {
       const homeRelDir = mkdtempSync(join(homedir(), ".subst-test-"));
       const homeRelFile = join(homeRelDir, "secret.txt");
