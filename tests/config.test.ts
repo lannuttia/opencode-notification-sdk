@@ -204,6 +204,12 @@ describe("substituteString", () => {
     delete process.env["TEST_SUBST_VAR"];
     expect(result).toBe("hello-world");
   });
+
+  it("should replace {env:VAR_NAME} with empty string when the variable is not set", () => {
+    delete process.env["NONEXISTENT_TEST_VAR_XYZ"];
+    const result = substituteString("prefix-{env:NONEXISTENT_TEST_VAR_XYZ}-suffix", "/tmp");
+    expect(result).toBe("prefix--suffix");
+  });
 });
 
 describe("getBackendConfig", () => {
