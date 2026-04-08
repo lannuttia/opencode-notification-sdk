@@ -271,18 +271,20 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
-"@opencode-ai/plugin@^1.2.6":
-  version "1.2.6"
-  resolved "https://registry.npmjs.org/@opencode-ai/plugin/-/plugin-1.2.6.tgz"
-  integrity sha512-CJEp3k17yWsjyfivm3zQof8L42pdze3a7iTqMOyesHgJplSuLiBYAMndbBYMDuJkyAh0dHYjw8v10vVw7Kfl4Q==
+"@opencode-ai/plugin@^1.4.0":
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/@opencode-ai/plugin/-/plugin-1.4.0.tgz#3231329b49821536b5ca6f3e713a69f715c15495"
+  integrity sha512-VFIff6LHp/RVaJdrK3EQ1ijx0K1tV5i1DY5YJ+pRqwC6trunPHbvqSN0GHSTZX39RdnSc+XuzCTZQCy1W2qNOg==
   dependencies:
-    "@opencode-ai/sdk" "1.2.6"
+    "@opencode-ai/sdk" "1.4.0"
     zod "4.1.8"
 
-"@opencode-ai/sdk@1.2.6":
-  version "1.2.6"
-  resolved "https://registry.npmjs.org/@opencode-ai/sdk/-/sdk-1.2.6.tgz"
-  integrity sha512-dWMF8Aku4h7fh8sw5tQ2FtbqRLbIFT8FcsukpxTird49ax7oUXP+gzqxM/VdxHjfksQvzLBjLZyMdDStc5g7xA==
+"@opencode-ai/sdk@1.4.0":
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/@opencode-ai/sdk/-/sdk-1.4.0.tgz#82eafe1f8ce22c4c554b85ae493f2eb6e2bd6813"
+  integrity sha512-mfa3MzhqNM+Az4bgPDDXL3NdG+aYOHClXmT6/4qLxf2ulyfPpMNHqb9Dfmo4D8UfmrDsPuJHmbune73/nUQnuw==
+  dependencies:
+    cross-spawn "7.0.6"
 
 "@rollup/rollup-android-arm-eabi@4.57.1":
   version "4.57.1"
@@ -715,7 +717,7 @@ concat-map@0.0.1:
   resolved "https://registry.npmjs.org/concat-map/-/concat-map-0.0.1.tgz"
   integrity sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==
 
-cross-spawn@^7.0.6:
+cross-spawn@7.0.6, cross-spawn@^7.0.6:
   version "7.0.6"
   resolved "https://registry.npmjs.org/cross-spawn/-/cross-spawn-7.0.6.tgz"
   integrity sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==
