@@ -12,7 +12,12 @@ The `opencode-notification-sdk` handles all notification decision logic:
 
 Your backend plugin only needs to implement a single method: `send()`. The SDK calls your `send()` method after all filtering is complete. You receive a `NotificationContext` with the event type and metadata -- your backend decides what content to produce and how to deliver it.
 
-> **OpenCode V2 note:** This SDK targets the OpenCode V2 plugin API (`@opencode/plugin`). The canonical `NotificationEvent` values (`"session.idle"`, `"session.error"`, `"permission.asked"`) are stable — the SDK maps `session.execution.failed` from the V2 event stream to `"session.error"` internally, so your backend always receives the same event names regardless of the underlying OpenCode version.
+> **OpenCode V2 note:** This SDK targets the OpenCode V2 plugin API (`@opencode/plugin`). The canonical `NotificationEvent` values (`"session.idle"`, `"session.error"`, `"permission.asked"`) are stable — the SDK maps them from the underlying V2 event stream internally:
+> - `"session.idle"` ← `session.status` event with `status.type === "idle"`
+> - `"session.error"` ← `session.execution.failed` event
+> - `"permission.asked"` ← `permission.asked` event (resources array → `permissionPatterns`)
+>
+> Your backend always receives the stable canonical names regardless of the underlying OpenCode event names.
 
 ## Prerequisites
 
@@ -31,7 +36,7 @@ Your `package.json` should list `@opencode/plugin` as a peer dependency:
     "@opencode/plugin": "*"
   },
   "dependencies": {
-    "opencode-notification-sdk": "^0.x"
+    "opencode-notification-sdk": "^2.0.0"
   }
 }
 ```

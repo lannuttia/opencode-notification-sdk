@@ -21,7 +21,15 @@ A TypeScript SDK that provides a standard notification decision engine for [Open
 | `session.error` | Session encountered an error |
 | `permission.asked` | Agent needs user permission to continue |
 
-The SDK maps these canonical names to the underlying OpenCode V2 event stream — for example, `"session.error"` is delivered to your backend when OpenCode emits a `session.execution.failed` event. Your backend always receives the stable canonical names.
+The SDK maps these canonical names from the underlying OpenCode V2 event stream:
+
+| Canonical `NotificationEvent` | V2 event |
+|---|---|
+| `"session.idle"` | `session.status` with `status.type === "idle"` |
+| `"session.error"` | `session.execution.failed` |
+| `"permission.asked"` | `permission.asked` (resources array → `permissionPatterns`) |
+
+Your backend always receives the stable canonical names.
 
 ## Installation
 
