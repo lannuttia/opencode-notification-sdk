@@ -21,6 +21,8 @@ A TypeScript SDK that provides a standard notification decision engine for [Open
 | `session.error` | Session encountered an error |
 | `permission.asked` | Agent needs user permission to continue |
 
+The SDK maps these canonical names to the underlying OpenCode V2 event stream — for example, `"session.error"` is delivered to your backend when OpenCode emits a `session.execution.failed` event. Your backend always receives the stable canonical names.
+
 ## Installation
 
 ```bash
@@ -57,6 +59,19 @@ export default plugin;
 ```
 
 That's it. The SDK handles event filtering and subagent suppression. Your backend decides what content to produce and how to deliver it.
+
+OpenCode discovers plugins listed under `plugins` in `opencode.jsonc`:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    "opencode-my-notification-plugin"
+  ]
+}
+```
+
+Plugins placed under `.opencode/plugins/` are discovered automatically without a config entry.
 
 ## Configuration
 
