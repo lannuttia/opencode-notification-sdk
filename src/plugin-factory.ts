@@ -146,7 +146,7 @@ export function createNotificationPlugin(
             continue;
           }
 
-          if (event.type === "session.idle") {
+          if (event.type === "session.execution.succeeded") {
             const notificationEvent = "session.idle" satisfies NotificationEvent;
 
             if (!config.events[notificationEvent].enabled) {

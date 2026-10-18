@@ -110,7 +110,7 @@ describe("createNotificationPlugin", () => {
     const config = createDefaultTestConfig();
 
     await runPlugin(backend, config, {
-      events: [{ type: "session.idle", data: { sessionID: "sess-123" } }],
+      events: [{ type: "session.execution.succeeded", data: { sessionID: "sess-123" } }],
     });
 
     expect(sentContexts).toHaveLength(1);
@@ -130,7 +130,7 @@ describe("createNotificationPlugin", () => {
     const { backend, wasCalled } = createTrackingBackend();
 
     await runPlugin(backend, config, {
-      events: [{ type: "session.idle", data: { sessionID: "sess-123" } }],
+      events: [{ type: "session.execution.succeeded", data: { sessionID: "sess-123" } }],
     });
 
     expect(wasCalled()).toBe(false);
@@ -143,7 +143,7 @@ describe("createNotificationPlugin", () => {
     const { backend, wasCalled } = createTrackingBackend();
 
     await runPlugin(backend, config, {
-      events: [{ type: "session.idle", data: { sessionID: "sess-123" } }],
+      events: [{ type: "session.execution.succeeded", data: { sessionID: "sess-123" } }],
     });
 
     expect(wasCalled()).toBe(false);
@@ -158,7 +158,7 @@ describe("createNotificationPlugin", () => {
 
     const plugin = createNotificationPlugin(backend, { config });
     const ctx: NotificationPluginContext = {
-      ...createTestContext({ events: [{ type: "session.idle", data: { sessionID: "sess-check-order" } }] }),
+      ...createTestContext({ events: [{ type: "session.execution.succeeded", data: { sessionID: "sess-check-order" } }] }),
       session: {
         get: async () => {
           sessionGetCalled = true;
@@ -181,7 +181,7 @@ describe("createNotificationPlugin", () => {
 
     await runPlugin(backend, config, {
       parentID: "parent-session",
-      events: [{ type: "session.idle", data: { sessionID: "child-session" } }],
+      events: [{ type: "session.execution.succeeded", data: { sessionID: "child-session" } }],
     });
 
     expect(wasCalled()).toBe(false);
@@ -211,7 +211,7 @@ describe("createNotificationPlugin", () => {
 
     await runPlugin(backend, config, {
       sessionGetError: true,
-      events: [{ type: "session.idle", data: { sessionID: "sess-unknown" } }],
+      events: [{ type: "session.execution.succeeded", data: { sessionID: "sess-unknown" } }],
     });
 
     expect(sentContexts).toHaveLength(1);
@@ -310,7 +310,7 @@ describe("createNotificationPlugin", () => {
     // Should not throw
     await expect(
       runPlugin(backend, config, {
-        events: [{ type: "session.idle", data: { sessionID: "sess-err-swallow" } }],
+        events: [{ type: "session.execution.succeeded", data: { sessionID: "sess-err-swallow" } }],
       }),
     ).resolves.toBeUndefined();
   });
@@ -333,7 +333,7 @@ describe("createNotificationPlugin", () => {
     const { backend, sentContexts } = createCapturingBackend();
 
     await runPlugin(backend, config, {
-      events: [{ type: "session.idle", data: { sessionID: "sess-bc-1" } }],
+      events: [{ type: "session.execution.succeeded", data: { sessionID: "sess-bc-1" } }],
     });
 
     expect(sentContexts).toHaveLength(1);
@@ -442,7 +442,7 @@ describe("createNotificationPlugin", () => {
 
     await runPlugin(backend, config, {
       directory: "/home/user/projects/my-awesome-project",
-      events: [{ type: "session.idle", data: { sessionID: "sess-dir-1" } }],
+      events: [{ type: "session.execution.succeeded", data: { sessionID: "sess-dir-1" } }],
     });
 
     expect(sentContexts).toHaveLength(1);
