@@ -146,7 +146,12 @@ export function createNotificationPlugin(
             continue;
           }
 
-          if (event.type === "session.execution.succeeded") {
+          if (
+            event.type === "session.status" &&
+            isRecord(event.data) &&
+            isRecord(event.data.status) &&
+            event.data.status.type === "idle"
+          ) {
             const notificationEvent = "session.idle" satisfies NotificationEvent;
 
             if (!config.events[notificationEvent].enabled) {
@@ -154,7 +159,7 @@ export function createNotificationPlugin(
             }
 
             const sessionID =
-              isRecord(event.data) && typeof event.data.sessionID === "string"
+              typeof event.data.sessionID === "string"
                 ? event.data.sessionID
                 : "";
 
