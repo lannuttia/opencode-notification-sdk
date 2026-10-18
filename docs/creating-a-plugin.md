@@ -18,15 +18,15 @@ Install the SDK and the OpenCode plugin types:
 
 ```bash
 bun add opencode-notification-sdk
-bun add -d @opencode-ai/plugin
+bun add -d @opencode/plugin
 ```
 
-Your `package.json` should list `@opencode-ai/plugin` as a peer dependency:
+Your `package.json` should list `@opencode/plugin` as a peer dependency:
 
 ```json
 {
   "peerDependencies": {
-    "@opencode-ai/plugin": "*"
+    "@opencode/plugin": "*"
   },
   "dependencies": {
     "opencode-notification-sdk": "^0.x"
@@ -108,12 +108,12 @@ Unrecognized variable names are substituted with empty strings.
 
 #### `execCommand($, command)`
 
-Executes a shell command via the Bun `$` shell and returns trimmed stdout. Rejects on non-zero exit codes:
+Executes a shell command via the Bun `$` shell and returns trimmed stdout. Rejects on non-zero exit codes. Import `$` from `"bun"` and pass it directly:
 
 ```typescript
+import { $ } from "bun";
 import { execCommand } from "opencode-notification-sdk";
 
-// In a context where you have access to the PluginInput's $ shell:
 const hostname = await execCommand($, "hostname");
 ```
 
@@ -122,6 +122,7 @@ const hostname = await execCommand($, "hostname");
 Combines `renderTemplate()` and `execCommand()`: renders `{var_name}` placeholders first, then executes the resulting command:
 
 ```typescript
+import { $ } from "bun";
 import { execTemplate } from "opencode-notification-sdk";
 
 const message = await execTemplate(
@@ -163,7 +164,7 @@ The SDK wraps every call to `send()` in a try/catch and silently ignores errors.
 
 ## Using `createNotificationPlugin()`
 
-The `createNotificationPlugin()` factory function wires your backend into a fully functional OpenCode plugin. It returns a `Plugin` function that OpenCode invokes when the plugin is loaded.
+The `createNotificationPlugin()` factory function wires your backend into a fully functional OpenCode V2 plugin. It returns a `Plugin.Plugin` object (with `id` and `setup`) that OpenCode loads via its default export.
 
 ```typescript
 import { createNotificationPlugin } from "opencode-notification-sdk";

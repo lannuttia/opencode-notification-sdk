@@ -6,8 +6,7 @@ import {
 import type { NotificationContext, NotificationBackend } from "../src/types.js";
 import type { NotificationSDKConfig } from "../src/config.js";
 import { createNotificationPlugin } from "../src/plugin-factory.js";
-import { createMockShell } from "./mock-shell.js";
-import type { SessionClient } from "../src/events.js";
+import type { NotificationPluginContext } from "../src/plugin-factory.js";
 
 function createDefaultTestConfig(): NotificationSDKConfig {
   return {
@@ -22,33 +21,36 @@ function createDefaultTestConfig(): NotificationSDKConfig {
 }
 
 /**
- * Creates a minimal mock PluginInput with a mock client whose session.get()
- * returns a session with the given parentID (or undefined if root).
+ * Builds a minimal NotificationPluginContext for testing.
  *
- * The plugin factory is designed to accept dependencies directly so we
- * don't need to use vi.mock(). We pass config directly to the factory.
+ * The plugin only uses ctx.location.directory, ctx.event.subscribe(), and
+ * ctx.session.get() — so we supply exactly those, with no mocking required.
  */
-function createMockPluginInput(overrides: {
+function createTestContext(overrides: {
   parentID?: string;
   directory?: string;
   sessionGetError?: boolean;
-} = {}) {
-  const mockClient: SessionClient = {
+  events?: Array<{ type: string; data?: unknown }>;
+}): NotificationPluginContext {
+  const events = overrides.events ?? [];
+
+  async function* eventStream(signal?: AbortSignal): AsyncIterable<{ type: string; data?: unknown }> {
+    for (const event of events) {
+      if (signal?.aborted) return;
+      yield event;
+    }
+  }
+
+  return {
+    location: { directory: overrides.directory ?? "/test/project" },
+    event: {
+      subscribe: ({ signal }: { signal?: AbortSignal } = {}) => eventStream(signal),
+    },
     session: {
       get: overrides.sessionGetError
         ? async () => { throw new Error("Connection refused"); }
-        : async () => ({
-            data: {
-              parentID: overrides.parentID,
-            },
-          }),
+        : async () => ({ parentID: overrides.parentID }),
     },
-  };
-
-  return {
-    client: mockClient,
-    directory: overrides.directory ?? "/test/project",
-    $: createMockShell(),
   };
 }
 
@@ -84,31 +86,38 @@ function createTrackingBackend(): {
   return { backend, wasCalled: () => called };
 }
 
+/**
+ * Drives the plugin's setup and waits for it to process the given events.
+ */
+async function runPlugin(
+  backend: NotificationBackend,
+  config: NotificationSDKConfig,
+  ctxOverrides: Parameters<typeof createTestContext>[0],
+): Promise<void> {
+  const plugin = createNotificationPlugin(backend, { config });
+  const ctx = createTestContext(ctxOverrides);
+  // setup() spawns an async event loop; give it a tick to drain the test events.
+  const cleanup = await plugin.setup(ctx);
+  await new Promise<void>((resolve) => setTimeout(resolve, 10));
+  if (typeof cleanup === "function") {
+    await cleanup();
+  }
+}
+
 describe("createNotificationPlugin", () => {
   it("should call backend.send() when session.idle fires for a root session", async () => {
     const { backend, sentContexts } = createCapturingBackend();
     const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    expect(hooks.event).toBeDefined();
-
-    await hooks.event!({
-      event: {
-        type: "session.idle",
-        properties: { sessionID: "sess-123" },
-      },
+    await runPlugin(backend, config, {
+      events: [{ type: "session.idle", data: { sessionID: "sess-123" } }],
     });
 
     expect(sentContexts).toHaveLength(1);
-
     const context = sentContexts[0];
     expect(context.event).toBe("session.idle");
     expect(context.metadata.sessionId).toBe("sess-123");
     expect(context.metadata.projectName).toBe("project");
-    // Should NOT have title, message, or isSubagent
     expect("title" in context).toBe(false);
     expect("message" in context).toBe(false);
     expect("isSubagent" in context.metadata).toBe(false);
@@ -120,15 +129,8 @@ describe("createNotificationPlugin", () => {
 
     const { backend, wasCalled } = createTrackingBackend();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    await hooks.event!({
-      event: {
-        type: "session.idle",
-        properties: { sessionID: "sess-123" },
-      },
+    await runPlugin(backend, config, {
+      events: [{ type: "session.idle", data: { sessionID: "sess-123" } }],
     });
 
     expect(wasCalled()).toBe(false);
@@ -140,15 +142,8 @@ describe("createNotificationPlugin", () => {
 
     const { backend, wasCalled } = createTrackingBackend();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    await hooks.event!({
-      event: {
-        type: "session.idle",
-        properties: { sessionID: "sess-123" },
-      },
+    await runPlugin(backend, config, {
+      events: [{ type: "session.idle", data: { sessionID: "sess-123" } }],
     });
 
     expect(wasCalled()).toBe(false);
@@ -159,35 +154,24 @@ describe("createNotificationPlugin", () => {
     config.events["session.idle"] = { enabled: false };
 
     const { backend, wasCalled } = createTrackingBackend();
-
     let sessionGetCalled = false;
-    const mockClient: SessionClient = {
+
+    const plugin = createNotificationPlugin(backend, { config });
+    const ctx: NotificationPluginContext = {
+      ...createTestContext({ events: [{ type: "session.idle", data: { sessionID: "sess-check-order" } }] }),
       session: {
         get: async () => {
           sessionGetCalled = true;
-          return { data: { parentID: undefined } };
+          return { parentID: undefined };
         },
       },
     };
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = {
-      client: mockClient,
-      directory: "/test/project",
-      $: createMockShell(),
-    };
-    const hooks = await plugin(input);
-
-    await hooks.event!({
-      event: {
-        type: "session.idle",
-        properties: { sessionID: "sess-check-order" },
-      },
-    });
+    const cleanup = await plugin.setup(ctx);
+    await new Promise<void>((resolve) => setTimeout(resolve, 10));
+    if (typeof cleanup === "function") await cleanup();
 
     expect(wasCalled()).toBe(false);
-    // The per-event enabled check should happen BEFORE the subagent check
-    // so session.get() should not be called
     expect(sessionGetCalled).toBe(false);
   });
 
@@ -195,39 +179,27 @@ describe("createNotificationPlugin", () => {
     const { backend, wasCalled } = createTrackingBackend();
     const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput({ parentID: "parent-session" });
-    const hooks = await plugin(input);
-
-    await hooks.event!({
-      event: {
-        type: "session.idle",
-        properties: { sessionID: "child-session" },
-      },
+    await runPlugin(backend, config, {
+      parentID: "parent-session",
+      events: [{ type: "session.idle", data: { sessionID: "child-session" } }],
     });
 
     expect(wasCalled()).toBe(false);
   });
 
-  it("should suppress session.error for subagent (child) sessions", async () => {
+  it("should suppress session.execution.failed for subagent (child) sessions", async () => {
     const { backend, wasCalled } = createTrackingBackend();
     const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput({ parentID: "parent-session" });
-    const hooks = await plugin(input);
-
-    await hooks.event!({
-      event: {
-        type: "session.error",
-        properties: {
+    await runPlugin(backend, config, {
+      parentID: "parent-session",
+      events: [{
+        type: "session.execution.failed",
+        data: {
           sessionID: "child-session",
-          error: {
-            name: "UnknownError",
-            data: { message: "child error" },
-          },
+          error: { type: "UnknownError", message: "child error" },
         },
-      },
+      }],
     });
 
     expect(wasCalled()).toBe(false);
@@ -237,44 +209,30 @@ describe("createNotificationPlugin", () => {
     const { backend, sentContexts } = createCapturingBackend();
     const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput({ sessionGetError: true });
-    const hooks = await plugin(input);
-
-    await hooks.event!({
-      event: {
-        type: "session.idle",
-        properties: { sessionID: "sess-unknown" },
-      },
+    await runPlugin(backend, config, {
+      sessionGetError: true,
+      events: [{ type: "session.idle", data: { sessionID: "sess-unknown" } }],
     });
 
-    // Should send because the session lookup failed (fall through)
     expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].event).toBe("session.idle");
   });
 
-  it("should fall through and send when session lookup fails for session.error", async () => {
+  it("should fall through and send when session lookup fails for session.execution.failed", async () => {
     const { backend, sentContexts } = createCapturingBackend();
     const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput({ sessionGetError: true });
-    const hooks = await plugin(input);
-
-    await hooks.event!({
-      event: {
-        type: "session.error",
-        properties: {
+    await runPlugin(backend, config, {
+      sessionGetError: true,
+      events: [{
+        type: "session.execution.failed",
+        data: {
           sessionID: "sess-unknown",
-          error: {
-            name: "UnknownError",
-            data: { message: "error" },
-          },
+          error: { type: "UnknownError", message: "error" },
         },
-      },
+      }],
     });
 
-    // Should send because the session lookup failed (fall through)
     expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].event).toBe("session.error");
   });
@@ -283,21 +241,14 @@ describe("createNotificationPlugin", () => {
     const { backend, sentContexts } = createCapturingBackend();
     const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    await hooks.event!({
-      event: {
-        type: "session.error",
-        properties: {
+    await runPlugin(backend, config, {
+      events: [{
+        type: "session.execution.failed",
+        data: {
           sessionID: "sess-err-1",
-          error: {
-            name: "UnknownError",
-            data: { message: "something went wrong" },
-          },
+          error: { type: "UnknownError", message: "something went wrong" },
         },
-      },
+      }],
     });
 
     expect(sentContexts).toHaveLength(1);
@@ -310,57 +261,39 @@ describe("createNotificationPlugin", () => {
     const { backend, sentContexts } = createCapturingBackend();
     const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    // permission.asked is not in the Event union type, so we construct
-    // the event hook input manually to simulate the runtime event.
-    const eventHook = hooks.event!;
-    const permissionEvent = {
-      event: {
+    await runPlugin(backend, config, {
+      events: [{
         type: "permission.asked",
-        properties: {
+        data: {
           sessionID: "sess-perm-1",
-          type: "file.write",
-          pattern: ["/tmp/*.txt"],
+          action: "file.write",
+          resources: ["/tmp/*.txt"],
         },
-      },
-    };
-    // @ts-expect-error permission.asked is not yet in the @opencode-ai/plugin Event union
-    await eventHook(permissionEvent);
+      }],
+    });
 
     expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].event).toBe("permission.asked");
     expect(sentContexts[0].metadata.permissionType).toBe("file.write");
-    expect(sentContexts[0].metadata.permissionPatterns).toEqual([
-      "/tmp/*.txt",
-    ]);
+    expect(sentContexts[0].metadata.permissionPatterns).toEqual(["/tmp/*.txt"]);
     expect(sentContexts[0].metadata.sessionId).toBe("sess-perm-1");
   });
 
-  it("should NOT send notification for permission.asked from subagent (no subagent check for permission)", async () => {
-    // permission.asked always sends, even if the session has a parentID
+  it("should send permission.asked even from subagent sessions (no subagent check for permission)", async () => {
     const { backend, sentContexts } = createCapturingBackend();
     const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput({ parentID: "parent-session" });
-    const hooks = await plugin(input);
-
-    const eventHook = hooks.event!;
-    const permissionEvent = {
-      event: {
+    await runPlugin(backend, config, {
+      parentID: "parent-session",
+      events: [{
         type: "permission.asked",
-        properties: {
+        data: {
           sessionID: "sess-perm-child",
-          type: "file.write",
-          pattern: ["/tmp/*.txt"],
+          action: "file.write",
+          resources: ["/tmp/*.txt"],
         },
-      },
-    };
-    // @ts-expect-error permission.asked is not yet in the @opencode-ai/plugin Event union
-    await eventHook(permissionEvent);
+      }],
+    });
 
     expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].event).toBe("permission.asked");
@@ -374,17 +307,10 @@ describe("createNotificationPlugin", () => {
     };
     const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    // Should not throw even though backend.send() rejects
+    // Should not throw
     await expect(
-      hooks.event!({
-        event: {
-          type: "session.idle",
-          properties: { sessionID: "sess-err-swallow" },
-        },
+      runPlugin(backend, config, {
+        events: [{ type: "session.idle", data: { sessionID: "sess-err-swallow" } }],
       }),
     ).resolves.toBeUndefined();
   });
@@ -393,26 +319,8 @@ describe("createNotificationPlugin", () => {
     const { backend, wasCalled } = createTrackingBackend();
     const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    // message.updated is a real Event type but not one we handle
-    await hooks.event!({
-      event: {
-        type: "message.updated",
-        properties: {
-          info: {
-            id: "msg-1",
-            sessionID: "sess-1",
-            role: "user",
-            time: { created: 0 },
-            agent: "default",
-            model: { providerID: "openai", modelID: "gpt-4" },
-            tools: {},
-          },
-        },
-      },
+    await runPlugin(backend, config, {
+      events: [{ type: "message.updated", data: { info: { id: "msg-1" } } }],
     });
 
     expect(wasCalled()).toBe(false);
@@ -424,33 +332,12 @@ describe("createNotificationPlugin", () => {
 
     const { backend, sentContexts } = createCapturingBackend();
 
-    const plugin = createNotificationPlugin(backend, {
-      backendConfigKey: "mybackend",
-      config,
-    });
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    await hooks.event!({
-      event: {
-        type: "session.idle",
-        properties: { sessionID: "sess-bc-1" },
-      },
+    await runPlugin(backend, config, {
+      events: [{ type: "session.idle", data: { sessionID: "sess-bc-1" } }],
     });
 
     expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].event).toBe("session.idle");
-  });
-
-  it("should NOT have tool.execute.before handler", async () => {
-    const { backend } = createCapturingBackend();
-    const config = createDefaultTestConfig();
-
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    expect(hooks["tool.execute.before"]).toBeUndefined();
   });
 
   it("should not call backend.send() when permission.asked event type is disabled", async () => {
@@ -459,22 +346,16 @@ describe("createNotificationPlugin", () => {
 
     const { backend, wasCalled } = createTrackingBackend();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    const permissionEvent = {
-      event: {
+    await runPlugin(backend, config, {
+      events: [{
         type: "permission.asked",
-        properties: {
+        data: {
           sessionID: "sess-perm-disabled",
-          type: "file.write",
-          pattern: ["/tmp/*.txt"],
+          action: "file.write",
+          resources: ["/tmp/*.txt"],
         },
-      },
-    };
-    // @ts-expect-error permission.asked is not yet in the @opencode-ai/plugin Event union
-    await hooks.event!(permissionEvent);
+      }],
+    });
 
     expect(wasCalled()).toBe(false);
   });
@@ -485,42 +366,26 @@ describe("createNotificationPlugin", () => {
 
     const { backend, wasCalled } = createTrackingBackend();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    await hooks.event!({
-      event: {
-        type: "session.error",
-        properties: {
+    await runPlugin(backend, config, {
+      events: [{
+        type: "session.execution.failed",
+        data: {
           sessionID: "sess-err-disabled",
-          error: {
-            name: "UnknownError",
-            data: { message: "should not send" },
-          },
+          error: { type: "UnknownError", message: "should not send" },
         },
-      },
+      }],
     });
 
     expect(wasCalled()).toBe(false);
   });
 
-  it("should handle permission.asked with missing properties gracefully", async () => {
+  it("should handle permission.asked with missing data gracefully", async () => {
     const { backend, sentContexts } = createCapturingBackend();
     const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    // Simulate a permission.asked event with no properties at all
-    const permissionEvent = {
-      event: {
-        type: "permission.asked",
-      },
-    };
-    // @ts-expect-error permission.asked is not yet in the @opencode-ai/plugin Event union
-    await hooks.event!(permissionEvent);
+    await runPlugin(backend, config, {
+      events: [{ type: "permission.asked" }],
+    });
 
     expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].event).toBe("permission.asked");
@@ -529,100 +394,75 @@ describe("createNotificationPlugin", () => {
     expect(sentContexts[0].metadata.permissionPatterns).toBeUndefined();
   });
 
-  it("should handle permission.asked with non-string sessionID and type gracefully", async () => {
+  it("should handle permission.asked with non-string sessionID and action gracefully", async () => {
     const { backend, sentContexts } = createCapturingBackend();
     const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    const permissionEvent = {
-      event: {
+    await runPlugin(backend, config, {
+      events: [{
         type: "permission.asked",
-        properties: {
+        data: {
           sessionID: 12345,
-          type: { nested: true },
-          pattern: 42,
+          action: { nested: true },
+          resources: 42,
         },
-      },
-    };
-    // @ts-expect-error permission.asked is not yet in the @opencode-ai/plugin Event union
-    await hooks.event!(permissionEvent);
+      }],
+    });
 
     expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].event).toBe("permission.asked");
-    // Non-string values should fall back to empty strings
     expect(sentContexts[0].metadata.sessionId).toBe("");
     expect(sentContexts[0].metadata.permissionType).toBe("");
-    // Non-string/non-array pattern should be undefined
+    // Non-array resources should be undefined
     expect(sentContexts[0].metadata.permissionPatterns).toBeUndefined();
   });
 
-  it("should handle permission.asked with a single string pattern", async () => {
+  it("should handle permission.asked with an array of resources", async () => {
     const { backend, sentContexts } = createCapturingBackend();
     const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    const permissionEvent = {
-      event: {
+    await runPlugin(backend, config, {
+      events: [{
         type: "permission.asked",
-        properties: {
+        data: {
           sessionID: "sess-perm-str",
-          type: "shell.execute",
-          pattern: "rm -rf /tmp/*",
+          action: "shell.execute",
+          resources: ["rm -rf /tmp/*"],
         },
-      },
-    };
-    // @ts-expect-error permission.asked is not yet in the @opencode-ai/plugin Event union
-    await hooks.event!(permissionEvent);
+      }],
+    });
 
     expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].metadata.permissionPatterns).toEqual(["rm -rf /tmp/*"]);
   });
 
-  it("should derive projectName from the basename of the input directory", async () => {
+  it("should derive projectName from the basename of the location directory", async () => {
     const { backend, sentContexts } = createCapturingBackend();
     const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput({ directory: "/home/user/projects/my-awesome-project" });
-    const hooks = await plugin(input);
-
-    await hooks.event!({
-      event: {
-        type: "session.idle",
-        properties: { sessionID: "sess-dir-1" },
-      },
+    await runPlugin(backend, config, {
+      directory: "/home/user/projects/my-awesome-project",
+      events: [{ type: "session.idle", data: { sessionID: "sess-dir-1" } }],
     });
 
     expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].metadata.projectName).toBe("my-awesome-project");
   });
 
-  it("should handle permission.asked with mixed-type array pattern (non-string elements) by omitting patterns", async () => {
+  it("should handle permission.asked with mixed-type array resources by omitting patterns", async () => {
     const { backend, sentContexts } = createCapturingBackend();
     const config = createDefaultTestConfig();
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = createMockPluginInput();
-    const hooks = await plugin(input);
-
-    const permissionEvent = {
-      event: {
+    await runPlugin(backend, config, {
+      events: [{
         type: "permission.asked",
-        properties: {
+        data: {
           sessionID: "sess-perm-mixed",
-          type: "file.write",
-          pattern: ["valid-string", 42, "another-string"],
+          action: "file.write",
+          resources: ["valid-string", 42, "another-string"],
         },
-      },
-    };
-    // @ts-expect-error permission.asked is not yet in the @opencode-ai/plugin Event union
-    await hooks.event!(permissionEvent);
+      }],
+    });
 
     expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].event).toBe("permission.asked");
@@ -630,47 +470,50 @@ describe("createNotificationPlugin", () => {
     expect(sentContexts[0].metadata.permissionPatterns).toBeUndefined();
   });
 
-  it("should skip subagent check when session.error has empty sessionID and still send", async () => {
+  it("should skip subagent check when session.execution.failed has empty sessionID and still send", async () => {
     const { backend, sentContexts } = createCapturingBackend();
     const config = createDefaultTestConfig();
-
     let sessionGetCalled = false;
-    const mockClient: SessionClient = {
+
+    const plugin = createNotificationPlugin(backend, { config });
+    const ctx: NotificationPluginContext = {
+      ...createTestContext({
+        events: [{
+          type: "session.execution.failed",
+          data: {
+            error: { type: "UnknownError", message: "error without session" },
+          },
+        }],
+      }),
       session: {
         get: async () => {
           sessionGetCalled = true;
-          return { data: { parentID: "parent-session" } };
+          return { parentID: undefined };
         },
       },
     };
 
-    const plugin = createNotificationPlugin(backend, { config });
-    const input = {
-      client: mockClient,
-      directory: "/test/project",
-      $: createMockShell(),
-    };
-    const hooks = await plugin(input);
+    const cleanup = await plugin.setup(ctx);
+    await new Promise<void>((resolve) => setTimeout(resolve, 10));
+    if (typeof cleanup === "function") await cleanup();
 
-    await hooks.event!({
-      event: {
-        type: "session.error",
-        properties: {
-          error: {
-            name: "UnknownError",
-            data: { message: "error without session" },
-          },
-        },
-      },
-    });
-
-    // session.get() should NOT be called because sessionID is empty
+    // session.get() should NOT be called because sessionID is empty/missing
     expect(sessionGetCalled).toBe(false);
-    // Should still send the notification
     expect(sentContexts).toHaveLength(1);
     expect(sentContexts[0].event).toBe("session.error");
     expect(sentContexts[0].metadata.sessionId).toBe("");
     expect(sentContexts[0].metadata.error).toBe("error without session");
   });
 
+  it("plugin should have the correct id when no backendConfigKey is provided", async () => {
+    const { backend } = createCapturingBackend();
+    const plugin = createNotificationPlugin(backend);
+    expect(plugin.id).toBe("opencode-notification");
+  });
+
+  it("plugin should have the correct id when backendConfigKey is provided", async () => {
+    const { backend } = createCapturingBackend();
+    const plugin = createNotificationPlugin(backend, { backendConfigKey: "ntfy" });
+    expect(plugin.id).toBe("opencode-notification-ntfy");
+  });
 });

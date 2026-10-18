@@ -12,9 +12,7 @@ describe("isSubagentSession", () => {
   it("should return true when session has a parentID", async () => {
     const client: SessionClient = {
       session: {
-        get: async () => ({
-          data: { parentID: "parent-123" },
-        }),
+        get: async () => ({ parentID: "parent-123" }),
       },
     };
     const result = await isSubagentSession(client, "child-456");
@@ -24,9 +22,7 @@ describe("isSubagentSession", () => {
   it("should return false when session has no parentID", async () => {
     const client: SessionClient = {
       session: {
-        get: async () => ({
-          data: { parentID: undefined },
-        }),
+        get: async () => ({ parentID: undefined }),
       },
     };
     const result = await isSubagentSession(client, "root-session");
@@ -45,12 +41,10 @@ describe("isSubagentSession", () => {
     expect(result).toBe(false);
   });
 
-  it("should return false when session data is undefined", async () => {
+  it("should return false when parentID is null", async () => {
     const client: SessionClient = {
       session: {
-        get: async () => ({
-          data: undefined,
-        }),
+        get: async () => ({ parentID: null }),
       },
     };
     const result = await isSubagentSession(client, "any-session");
@@ -60,9 +54,7 @@ describe("isSubagentSession", () => {
   it("should return false when parentID is an empty string", async () => {
     const client: SessionClient = {
       session: {
-        get: async () => ({
-          data: { parentID: "" },
-        }),
+        get: async () => ({ parentID: "" }),
       },
     };
     const result = await isSubagentSession(client, "root-session");
@@ -89,11 +81,11 @@ describe("extractSessionIdleMetadata", () => {
 });
 
 describe("extractSessionErrorMetadata", () => {
-  it("should extract error message from session.error event with UnknownError", () => {
+  it("should extract error message from session.execution.failed event (V2 SessionStructuredError shape)", () => {
     const metadata = extractSessionErrorMetadata(
       {
         sessionID: "sess-456",
-        error: { name: "UnknownError", data: { message: "something broke" } },
+        error: { type: "UnknownError", message: "something broke" },
       },
       "my-project",
     );
@@ -108,10 +100,10 @@ describe("extractSessionErrorMetadata", () => {
     expect("isSubagent" in metadata).toBe(false);
   });
 
-  it("should handle missing sessionID in session.error event", () => {
+  it("should handle missing sessionID in session.execution.failed event", () => {
     const metadata = extractSessionErrorMetadata(
       {
-        error: { name: "UnknownError", data: { message: "no session" } },
+        error: { type: "UnknownError", message: "no session" },
       },
       "my-project",
     );
@@ -120,7 +112,7 @@ describe("extractSessionErrorMetadata", () => {
     expect(metadata.error).toBe("no session");
   });
 
-  it("should handle missing error in session.error event", () => {
+  it("should handle missing error in session.execution.failed event", () => {
     const metadata = extractSessionErrorMetadata(
       { sessionID: "sess-789" },
       "my-project",
@@ -140,9 +132,9 @@ describe("extractSessionErrorMetadata", () => {
     expect(metadata.error).toBeUndefined();
   });
 
-  it("should not extract error when error.data is missing", () => {
+  it("should not extract error when error has no message property", () => {
     const metadata = extractSessionErrorMetadata(
-      { sessionID: "sess-nodata", error: { name: "SomeError" } },
+      { sessionID: "sess-nodata", error: { type: "SomeError" } },
       "my-project",
     );
 
@@ -150,9 +142,9 @@ describe("extractSessionErrorMetadata", () => {
     expect(metadata.error).toBeUndefined();
   });
 
-  it("should not extract error when error.data.message is not a string", () => {
+  it("should not extract error when error.message is not a string", () => {
     const metadata = extractSessionErrorMetadata(
-      { sessionID: "sess-badmsg", error: { data: { message: 42 } } },
+      { sessionID: "sess-badmsg", error: { type: "SomeError", message: 42 } },
       "my-project",
     );
 

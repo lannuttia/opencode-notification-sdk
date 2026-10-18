@@ -27,10 +27,10 @@ A TypeScript SDK that provides a standard notification decision engine for [Open
 bun add opencode-notification-sdk
 ```
 
-`@opencode-ai/plugin` is a peer dependency and must be available in the consuming project:
+`@opencode/plugin` is a peer dependency and must be available in the consuming project:
 
 ```bash
-bun add -d @opencode-ai/plugin
+bun add -d @opencode/plugin
 ```
 
 ## Quick Start
@@ -146,13 +146,13 @@ Combines `renderTemplate()` and `execCommand()`: renders placeholders, then exec
 
 ### `createNotificationPlugin(backend, options?)`
 
-Creates a fully functional OpenCode plugin from a backend implementation.
+Creates a fully functional OpenCode V2 plugin from a backend implementation.
 
 ```typescript
 function createNotificationPlugin(
   backend: NotificationBackend,
   options?: { backendConfigKey?: string }
-): Plugin;
+): Plugin.Plugin;
 ```
 
 - `backend` -- an object implementing the `NotificationBackend` interface
@@ -187,10 +187,10 @@ function renderTemplate(template: string, context: NotificationContext): string;
 
 ### `execCommand($, command)`
 
-Executes a shell command string and returns its trimmed stdout.
+Executes a shell command string and returns its trimmed stdout. Pass `$` from `import { $ } from "bun"`.
 
 ```typescript
-function execCommand($: PluginInput["$"], command: string): Promise<string>;
+function execCommand($: BunShell, command: string): Promise<string>;
 ```
 
 ### `execTemplate($, template, context)`
@@ -198,7 +198,7 @@ function execCommand($: PluginInput["$"], command: string): Promise<string>;
 Renders template variables into a command string, executes it, and returns the stdout.
 
 ```typescript
-function execTemplate($: PluginInput["$"], template: string, context: NotificationContext): Promise<string>;
+function execTemplate($: BunShell, template: string, context: NotificationContext): Promise<string>;
 ```
 
 ### Types

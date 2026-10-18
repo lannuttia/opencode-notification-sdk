@@ -1,6 +1,4 @@
-import type { PluginInput } from "@opencode-ai/plugin";
-
-type BunShell = PluginInput["$"];
+import type { BunShell } from "../src/templates.js";
 
 /**
  * Type guard: checks if a value is an object with a string `raw` property.

@@ -21,10 +21,10 @@
     "test:coverage": "vitest run --coverage"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": "*"
+    "@opencode/plugin": "*"
   },
   "devDependencies": {
-    "@opencode-ai/plugin": "^1.2.6",
+    "@opencode/plugin": "^2.0.32",
     "@types/node": "25",
     "@vitest/coverage-v8": "^4.0.18",
     "eslint": "^9.39.2",

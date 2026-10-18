@@ -1,6 +1,33 @@
-import type { PluginInput } from "@opencode-ai/plugin";
 import type { NotificationContext } from "./types.js";
 import { buildTemplateVariables } from "./events.js";
+
+/**
+ * A minimal interface for a Bun shell compatible with the SDK's
+ * {@link execCommand} and {@link execTemplate} utilities.
+ *
+ * This matches the shape of the Bun `$` tagged-template shell. Plugin authors
+ * can obtain a Bun shell via `import { $ } from "bun"` and pass it here.
+ */
+export interface BunShell {
+  (strings: TemplateStringsArray, ...expressions: unknown[]): BunShellPromise;
+}
+
+/**
+ * A minimal interface for the result of a Bun shell invocation,
+ * sufficient for the SDK's shell utilities.
+ */
+export interface BunShellPromise extends Promise<BunShellOutput> {
+  nothrow(): BunShellPromise;
+  quiet(): BunShellPromise;
+}
+
+/**
+ * A minimal interface for the resolved output of a Bun shell command.
+ */
+export interface BunShellOutput {
+  readonly exitCode: number;
+  text(): string;
+}
 
 /**
  * Pure, synchronous string interpolation of `{var_name}` placeholders
@@ -26,14 +53,14 @@ export function renderTemplate(
 /**
  * Execute a shell command and return its trimmed stdout.
  *
- * @param $ - The Bun shell from {@link PluginInput}.
+ * @param $ - A Bun shell instance (e.g., `import { $ } from "bun"`).
  * @param command - The shell command string to execute.
  * @returns A promise that resolves to the trimmed stdout if the command
  *   succeeds (exit code 0).
  * @throws If the command fails (non-zero exit code) or throws an exception.
  */
 export async function execCommand(
-  $: PluginInput["$"],
+  $: BunShell,
   command: string,
 ): Promise<string> {
   const result = await $`${{ raw: command }}`.nothrow().quiet();
@@ -53,14 +80,14 @@ export async function execCommand(
  * operation: render template variables into a command string, execute it,
  * and return the stdout.
  *
- * @param $ - The Bun shell from {@link PluginInput}.
+ * @param $ - A Bun shell instance (e.g., `import { $ } from "bun"`).
  * @param template - A command template string containing `{var_name}` placeholders.
  * @param context - The notification context from which to derive variable values.
  * @returns A promise that resolves to the trimmed stdout of the executed command.
  * @throws If the command fails (non-zero exit code) or throws an exception.
  */
 export async function execTemplate(
-  $: PluginInput["$"],
+  $: BunShell,
   template: string,
   context: NotificationContext,
 ): Promise<string> {

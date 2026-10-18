@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import type { Plugin } from "@opencode-ai/plugin";
+import { Plugin } from "@opencode/plugin";
 import { isRecord } from "./types.js";
 import type { NotificationBackend, NotificationEvent, EventMetadata } from "./types.js";
 import { loadConfig } from "./config.js";
@@ -11,6 +11,20 @@ import {
   extractPermissionMetadata,
 } from "./events.js";
 import type { SessionClient } from "./events.js";
+
+/**
+ * The subset of the OpenCode V2 plugin context that this SDK requires.
+ *
+ * Exported so tests can construct a minimal object that satisfies the
+ * contract without depending on or mocking the full `Plugin.Context`.
+ */
+export interface NotificationPluginContext {
+  readonly location: { readonly directory: string };
+  readonly event: {
+    subscribe(options?: { signal?: AbortSignal }): AsyncIterable<{ type: string; data?: unknown }>;
+  };
+  readonly session: SessionClient["session"];
+}
 
 async function sendNotification(
   backend: NotificationBackend,
@@ -44,7 +58,7 @@ export interface PluginFactoryOptions {
 }
 
 /**
- * Create a fully functional OpenCode notification plugin from a backend implementation.
+ * Create a fully functional OpenCode V2 notification plugin from a backend implementation.
  *
  * This is the main entry point for backend plugin authors. It wires together
  * config loading, event classification, and subagent suppression — then calls
@@ -57,137 +71,141 @@ export interface PluginFactoryOptions {
  * @param backend - The notification backend that implements the delivery transport.
  * @param options - Optional configuration including a `backendConfigKey` for
  *   determining the per-backend config file path.
- * @returns An OpenCode {@link Plugin} function ready to be exported as a plugin.
+ * @returns An OpenCode V2 {@link Plugin} ready to be exported as a plugin default export.
  */
 export function createNotificationPlugin(
   backend: NotificationBackend,
   options?: PluginFactoryOptions,
-): Plugin {
-  return async (input) => {
-    const config = options?.config ?? loadConfig(options?.backendConfigKey);
-    const projectName = basename(input.directory);
+): Plugin.Plugin {
+  return Plugin.define({
+    id: options?.backendConfigKey
+      ? `opencode-notification-${options.backendConfigKey}`
+      : "opencode-notification",
 
-    // Extract the client's session API. We use our own SessionClient interface
-    // to keep the mock surface small in tests.
-    const client: SessionClient = {
-      session: {
-        get: (opts) => input.client.session.get(opts),
-      },
-    };
+    setup(ctx: NotificationPluginContext) {
+      const config = options?.config ?? loadConfig(options?.backendConfigKey);
+      const projectName = basename(ctx.location.directory);
 
-    return {
-      async event({ event }) {
-        if (!config.enabled) {
-          return;
-        }
+      const client: SessionClient = {
+        session: ctx.session,
+      };
 
-        // Extract the event type as a plain string so we can handle
-        // event types not yet in the @opencode-ai/plugin Event union
-        // (like "permission.asked") without TypeScript narrowing to never.
-        const eventTypeStr: string = event.type;
+      const controller = new AbortController();
 
-        if (eventTypeStr === "permission.asked") {
-          const notificationEvent = "permission.asked" satisfies NotificationEvent;
-
-          if (!config.events[notificationEvent].enabled) {
-            return;
+      void (async () => {
+        for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
+          if (!config.enabled) {
+            continue;
           }
 
-          // Safely extract properties from the event object since
-          // permission.asked is not in the typed Event union
-          const props: unknown = "properties" in event ? event.properties : undefined;
-          const sessionID =
-            isRecord(props) && typeof props.sessionID === "string"
-              ? props.sessionID
-              : "";
-          const permType =
-            isRecord(props) && typeof props.type === "string"
-              ? props.type
-              : "";
+          // Extract the event type as a plain string so we can handle
+          // event types not yet in the @opencode/plugin Event union
+          // (like "permission.asked") without TypeScript narrowing to never.
+          const eventTypeStr: string = event.type;
 
-          let pattern: string | string[] | undefined;
-          if (isRecord(props)) {
-            if (typeof props.pattern === "string") {
-              pattern = props.pattern;
-            } else if (
-              Array.isArray(props.pattern) &&
-              props.pattern.every(
-                (p): p is string => typeof p === "string",
-              )
-            ) {
-              pattern = props.pattern;
+          if (eventTypeStr === "permission.asked") {
+            const notificationEvent = "permission.asked" satisfies NotificationEvent;
+
+            if (!config.events[notificationEvent].enabled) {
+              continue;
             }
+
+            // Safely extract properties from the event object since
+            // the data shape may not always match what TypeScript expects.
+            const data: unknown = "data" in event ? event.data : undefined;
+            const sessionID =
+              isRecord(data) && typeof data.sessionID === "string"
+                ? data.sessionID
+                : "";
+            const action =
+              isRecord(data) && typeof data.action === "string"
+                ? data.action
+                : "";
+
+            // In V2, resources is an array of strings (replaces V1's pattern field)
+            let permissionPatterns: string[] | undefined;
+            if (isRecord(data) && Array.isArray(data.resources)) {
+              const resources = data.resources;
+              if (resources.every((r): r is string => typeof r === "string")) {
+                permissionPatterns = resources;
+              }
+            }
+
+            const permissionProps = {
+              sessionID,
+              type: action,
+              pattern: permissionPatterns,
+            };
+
+            const metadata = extractPermissionMetadata(
+              permissionProps,
+              projectName,
+            );
+
+            await sendNotification(backend, notificationEvent, metadata);
+            continue;
           }
 
-          const permissionProps = {
-            sessionID,
-            type: permType,
-            pattern,
-          };
+          if (event.type === "session.idle") {
+            const notificationEvent = "session.idle" satisfies NotificationEvent;
 
-          const metadata = extractPermissionMetadata(
-            permissionProps,
-            projectName,
-          );
+            if (!config.events[notificationEvent].enabled) {
+              continue;
+            }
 
-          await sendNotification(
-            backend, notificationEvent, metadata,
-          );
-          return;
-        }
+            const sessionID =
+              isRecord(event.data) && typeof event.data.sessionID === "string"
+                ? event.data.sessionID
+                : "";
 
-        if (event.type === "session.idle") {
-          const notificationEvent = "session.idle" satisfies NotificationEvent;
-
-          if (!config.events[notificationEvent].enabled) {
-            return;
-          }
-
-          const sessionID = event.properties.sessionID;
-
-          // Subagent suppression: check if session has a parentID
-          const isSubagent = await isSubagentSession(client, sessionID);
-          if (isSubagent) {
-            return;
-          }
-
-          const metadata = extractSessionIdleMetadata(
-            { sessionID },
-            projectName,
-          );
-
-          await sendNotification(
-            backend, notificationEvent, metadata,
-          );
-        }
-
-        if (event.type === "session.error") {
-          const notificationEvent = "session.error" satisfies NotificationEvent;
-
-          if (!config.events[notificationEvent].enabled) {
-            return;
-          }
-
-          const sessionID = event.properties.sessionID ?? "";
-
-          // Subagent suppression: check if session has a parentID
-          if (sessionID !== "") {
+            // Subagent suppression: check if session has a parentID
             const isSubagent = await isSubagentSession(client, sessionID);
             if (isSubagent) {
-              return;
+              continue;
             }
+
+            const metadata = extractSessionIdleMetadata(
+              { sessionID },
+              projectName,
+            );
+
+            await sendNotification(backend, notificationEvent, metadata);
+            continue;
           }
 
-          const metadata = extractSessionErrorMetadata(
-            event.properties,
-            projectName,
-          );
+          if (event.type === "session.execution.failed") {
+            const notificationEvent = "session.error" satisfies NotificationEvent;
 
-          await sendNotification(
-            backend, notificationEvent, metadata,
-          );
+            if (!config.events[notificationEvent].enabled) {
+              continue;
+            }
+
+            const sessionID =
+              isRecord(event.data) && typeof event.data.sessionID === "string"
+                ? event.data.sessionID
+                : "";
+            const error = isRecord(event.data) ? event.data.error : undefined;
+
+            // Subagent suppression: check if session has a parentID
+            if (sessionID !== "") {
+              const isSubagent = await isSubagentSession(client, sessionID);
+              if (isSubagent) {
+                continue;
+              }
+            }
+
+            // In V2, error is a SessionStructuredError with a top-level message field
+            const metadata = extractSessionErrorMetadata(
+              { sessionID, error },
+              projectName,
+            );
+
+            await sendNotification(backend, notificationEvent, metadata);
+          }
         }
-      },
-    };
-  };
+      })();
+
+      return () => controller.abort();
+    },
+  });
 }

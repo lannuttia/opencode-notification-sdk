@@ -1,31 +1,27 @@
 import type { EventMetadata, NotificationEvent } from "./types.js";
 
 /**
- * Minimal interface for the OpenCode client's session API.
+ * Minimal interface for the OpenCode V2 plugin context's session API.
  * Only the methods the SDK needs are specified, keeping the mock surface small.
  */
 export interface SessionClient {
   session: {
     get(options: {
-      path: { id: string };
+      sessionID: string;
     }): Promise<{
-      data:
-        | {
-            parentID?: string;
-          }
-        | undefined;
+      parentID?: string | null;
     }>;
   };
 }
 
 /**
  * Checks whether a session is a subagent (child) session by looking
- * for a `parentID` on the session object via `client.session.get()`.
+ * for a `parentID` on the session object via `ctx.session.get()`.
  *
  * If the session lookup fails (e.g., network error, missing session),
  * returns `false` so the notification is sent anyway (fail-open behavior).
  *
- * @param client - The OpenCode client with a session API.
+ * @param client - The OpenCode plugin context with a session API.
  * @param sessionId - The session ID to check.
  * @returns `true` if the session has a parent (is a subagent), `false` otherwise.
  */
@@ -34,8 +30,8 @@ export async function isSubagentSession(
   sessionId: string,
 ): Promise<boolean> {
   try {
-    const response = await client.session.get({ path: { id: sessionId } });
-    return Boolean(response.data?.parentID);
+    const response = await client.session.get({ sessionID: sessionId });
+    return Boolean(response.parentID);
   } catch {
     return false;
   }
@@ -66,29 +62,26 @@ export function extractSessionIdleMetadata(
   return createBaseMetadata(properties.sessionID, projectName);
 }
 
-interface ErrorWithMessage {
-  data: { message: string };
-}
-
-function isErrorWithMessage(value: unknown): value is ErrorWithMessage {
+/**
+ * Checks whether a value has a top-level `message` string property.
+ * Matches the V2 `SessionStructuredError` shape: `{ type: string, message: string }`.
+ */
+function hasDirectMessage(value: unknown): value is { message: string } {
   return (
     typeof value === "object" &&
     value !== null &&
-    "data" in value &&
-    typeof value.data === "object" &&
-    value.data !== null &&
-    "message" in value.data &&
-    typeof value.data.message === "string"
+    "message" in value &&
+    typeof value.message === "string"
   );
 }
 
 /**
- * Extract event metadata from a `session.error` event's properties.
+ * Extract event metadata from a `session.execution.failed` (session error) event's data.
  *
- * If the error object contains a `data.message` string, it is included
- * in the metadata's `error` field.
+ * If the error object contains a `message` string (V2 `SessionStructuredError` shape),
+ * it is included in the metadata's `error` field.
  *
- * @param properties - The event properties, optionally containing session ID and error info.
+ * @param properties - The event data, optionally containing session ID and error info.
  * @param projectName - The project directory basename.
  * @returns The constructed {@link EventMetadata} for the error event.
  */
@@ -98,8 +91,8 @@ export function extractSessionErrorMetadata(
 ): EventMetadata {
   const metadata = createBaseMetadata(properties.sessionID ?? "", projectName);
 
-  if (isErrorWithMessage(properties.error)) {
-    metadata.error = properties.error.data.message;
+  if (hasDirectMessage(properties.error)) {
+    metadata.error = properties.error.message;
   }
 
   return metadata;
